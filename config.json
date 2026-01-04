@@ -1,0 +1,20 @@
+{
+  "preferences": {
+    "theme": "dark",
+    "default_stocks": [
+      "RELIANCE",
+      "TCS",
+      "HDFCBANK",
+      "INFY",
+      "ICICIBANK"
+    ],
+    "auto_save": true
+  },
+  "notepad": {
+    "content": "",
+    "last_updated": null
+  },
+  "history": [],
+  "calendar_events": [],
+  "custom_tickers": []
+}

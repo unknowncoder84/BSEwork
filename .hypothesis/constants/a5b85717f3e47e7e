@@ -1,0 +1,4 @@
+# file: C:\Users\Rishi Sawant\Downloads\nitinsir\components\processor.py
+# hypothesis_version: 6.148.11
+
+['Call', 'Call LTP', 'Call OI', 'Close', 'Date', 'High', 'Low', 'Merged data is empty', 'N/A', 'NaN', 'None', 'Open', 'Open Interest', 'Put', 'Put LTP', 'Put OI', 'Strike Price', 'Volume', '_put', 'all', 'close', 'date', 'high', 'last', 'low', 'ltp', 'nan', 'oi', 'open', 'open interest', 'outer', 'price', 'strike', 'volume']
