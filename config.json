@@ -1,6 +1,6 @@
 {
   "preferences": {
-    "theme": "light",
+    "theme": "dark",
     "default_stocks": [
       "RELIANCE",
       "TCS",
@@ -14,7 +14,21 @@
     "content": "",
     "last_updated": null
   },
-  "history": [],
+  "history": [
+    {
+      "timestamp": "2026-01-04T20:57:55.974885",
+      "stocks": [
+        "RELIANCE",
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 3,
+      "from_date": "05-Dec-2025",
+      "to_date": "04-Jan-2026",
+      "filename": "BSE_Data_RELIANCE_TCS_HDFCBANK_20251205_20260104.xlsx",
+      "status": "success"
+    }
+  ],
   "calendar_events": [],
   "custom_tickers": []
 }
