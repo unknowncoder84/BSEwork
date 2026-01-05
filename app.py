@@ -30,13 +30,33 @@ def get_css():
         
         * { font-family: 'Inter', sans-serif; }
         
-        .stApp { background: #0f1419; }
+        /* Dark background with gradient overlay like the React component */
+        .stApp { 
+            background: #030303 !important;
+        }
+        .stApp::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(244, 63, 94, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .stApp > * { position: relative; z-index: 1; }
+        
         #MainMenu, footer, header { display: none; }
         
-        /* Sidebar */
+        /* Sidebar with glass effect */
         [data-testid="stSidebar"] {
-            background: #1a1f26 !important;
-            border-right: 1px solid #2d3748;
+            background: rgba(10, 10, 15, 0.95) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            backdrop-filter: blur(12px);
         }
         [data-testid="stSidebar"] > div { background: transparent !important; }
         
@@ -50,102 +70,125 @@ def get_css():
         
         /* Typography */
         h1, h2, h3 { color: #f7fafc !important; }
-        p, label, span { color: #a0aec0 !important; }
+        p, label, span { color: rgba(255, 255, 255, 0.6) !important; }
         
-        /* Inputs */
+        /* Inputs with glass effect */
         .stTextInput input, .stNumberInput input, .stTextArea textarea {
-            background: #1a202c !important;
-            border: 1px solid #2d3748 !important;
-            border-radius: 6px !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 8px !important;
             color: #f7fafc !important;
+            backdrop-filter: blur(4px);
         }
         .stTextInput input:focus, .stNumberInput input:focus {
-            border-color: #ed8936 !important;
-            box-shadow: 0 0 0 1px #ed8936 !important;
+            border-color: rgba(129, 140, 248, 0.5) !important;
+            box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.3) !important;
         }
         
         .stDateInput input {
-            background: #1a202c !important;
-            border: 1px solid #2d3748 !important;
-            border-radius: 6px !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 8px !important;
             color: #f7fafc !important;
         }
         
         .stSelectbox > div > div {
-            background: #1a202c !important;
-            border: 1px solid #2d3748 !important;
-            border-radius: 6px !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 8px !important;
         }
         
         .stMultiSelect > div > div {
-            background: #1a202c !important;
-            border: 1px solid #2d3748 !important;
-            border-radius: 6px !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 8px !important;
         }
         .stMultiSelect [data-baseweb="tag"] {
-            background: #ed8936 !important;
+            background: linear-gradient(135deg, #818cf8, #c084fc) !important;
             color: white !important;
-            border-radius: 4px !important;
+            border-radius: 6px !important;
         }
         
-        /* Buttons */
+        /* Buttons with indigo-rose gradient */
         .stButton > button {
-            background: #ed8936 !important;
+            background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%) !important;
             color: white !important;
             border: none !important;
-            border-radius: 6px !important;
+            border-radius: 8px !important;
             font-weight: 500 !important;
             padding: 0.5rem 1rem !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 4px 15px rgba(129, 140, 248, 0.3) !important;
         }
         .stButton > button:hover {
-            background: #dd6b20 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 6px 20px rgba(129, 140, 248, 0.4) !important;
         }
         
         .stDownloadButton > button {
-            background: #48bb78 !important;
+            background: linear-gradient(135deg, #34d399, #10b981) !important;
             color: white !important;
             border: none !important;
-            border-radius: 6px !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 15px rgba(52, 211, 153, 0.3) !important;
         }
         
-        /* Progress */
-        .stProgress > div > div > div { background: #ed8936 !important; }
-        .stProgress > div > div { background: #2d3748 !important; }
+        /* Progress with gradient */
+        .stProgress > div > div > div { 
+            background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6) !important; 
+        }
+        .stProgress > div > div { background: rgba(255, 255, 255, 0.08) !important; }
         
-        /* Tabs */
+        /* Tabs with glass effect */
         .stTabs [data-baseweb="tab-list"] {
-            background: #1a1f26 !important;
-            border-radius: 8px !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border-radius: 10px !important;
             padding: 4px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .stTabs [data-baseweb="tab"] {
             background: transparent !important;
-            color: #718096 !important;
-            border-radius: 4px !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+            border-radius: 6px !important;
         }
         .stTabs [aria-selected="true"] {
-            background: #ed8936 !important;
+            background: linear-gradient(135deg, #818cf8, #c084fc) !important;
             color: white !important;
         }
         
-        /* Cards */
+        /* Cards with glass morphism */
         .metric-card {
-            background: #1a1f26;
-            border: 1px solid #2d3748;
-            border-radius: 8px;
-            padding: 1rem;
-            border-left: 3px solid #ed8936;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
         }
         .metric-label {
             font-size: 0.75rem;
-            color: #718096;
+            color: rgba(255, 255, 255, 0.4);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         .metric-value {
             font-size: 1.75rem;
             font-weight: 600;
-            color: #f7fafc;
+            background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             margin-top: 0.25rem;
         }
         
@@ -154,35 +197,60 @@ def get_css():
             align-items: center; 
             gap: 0.75rem; 
             padding: 1rem 0; 
-            border-bottom: 1px solid #2d3748;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             margin-bottom: 1rem;
         }
         .brand-icon {
-            width: 32px;
-            height: 32px;
-            background: #ed8936;
-            border-radius: 6px;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #818cf8, #c084fc);
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3);
         }
-        .brand-text { font-size: 1rem; font-weight: 600; color: #f7fafc; }
+        .brand-text { 
+            font-size: 1rem; 
+            font-weight: 600; 
+            background: linear-gradient(135deg, #fff, rgba(255,255,255,0.9));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
         
         .section-title {
             font-size: 0.7rem;
-            color: #4a5568;
+            color: rgba(255, 255, 255, 0.3);
             text-transform: uppercase;
             letter-spacing: 1px;
             margin: 1.25rem 0 0.5rem 0;
             font-weight: 600;
         }
         
-        .page-title { font-size: 1.5rem; font-weight: 600; color: #f7fafc; margin-bottom: 0.5rem; }
-        .page-subtitle { font-size: 0.875rem; color: #718096; }
+        .page-title { 
+            font-size: 1.75rem; 
+            font-weight: 600; 
+            background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem; 
+        }
+        .page-subtitle { font-size: 0.875rem; color: rgba(255, 255, 255, 0.4); }
         
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f1419; }
-        ::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: #030303; }
+        ::-webkit-scrollbar-thumb { 
+            background: linear-gradient(180deg, #818cf8, #c084fc); 
+            border-radius: 3px; 
+        }
+        
+        /* DataFrame styling */
+        .stDataFrame {
+            border-radius: 12px !important;
+            overflow: hidden;
+        }
     </style>
     """
 
