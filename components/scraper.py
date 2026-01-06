@@ -1,9 +1,11 @@
 """
 Selenium-based web scraper for BSE Derivative Data.
 Uses undetected-chromedriver for anti-bot detection bypass.
+Configured for cloud deployment with system Chromium.
 """
 import time
 import random
+import os
 import pandas as pd
 from datetime import date
 from typing import Optional, Tuple, List
@@ -26,15 +28,19 @@ from selenium.common.exceptions import (
     TimeoutException, NoSuchElementException, 
     WebDriverException, StaleElementReferenceException
 )
-from webdriver_manager.chrome import ChromeDriverManager
 
 from utils.models import (
     FetchParameters, ConnectivityError, CompanyNotFoundError,
-    NoDataError, BotDetectionError, ElementNotFoundError, DataValidationError
+    NoDataError, BotDetectionError, ElementNotFoundError, DataValidationError,
+    StrikePriceNotAvailableError, BSEScraperError
 )
 
 # BSE Historical Data URL
 BSE_URL = "https://www.bseindia.com/markets/Derivatives/DeriReports/HistoricalData.aspx"
+
+# Cloud deployment paths
+CHROMIUM_BINARY_PATH = "/usr/bin/chromium"
+CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
 
 # User agents for rotation
 USER_AGENTS = [
@@ -42,6 +48,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ]
 
 
@@ -60,12 +67,30 @@ def get_random_user_agent() -> str:
     return random.choice(USER_AGENTS)
 
 
+def is_cloud_environment() -> bool:
+    """Check if running in cloud environment (Streamlit Cloud, etc.)"""
+    # Check for common cloud environment indicators
+    return (
+        os.path.exists(CHROMIUM_BINARY_PATH) or
+        os.environ.get('STREAMLIT_SHARING_MODE') is not None or
+        os.environ.get('IS_CLOUD') is not None
+    )
+
+
 def initialize_driver() -> webdriver.Chrome:
     """
     Initialize Chrome WebDriver with anti-detection configuration.
-    Uses undetected-chromedriver if available, falls back to standard selenium.
+    Automatically detects cloud vs local environment and configures accordingly.
+    
+    CRITICAL for Streamlit Cloud:
+    - options.binary_location = "/usr/bin/chromium"
+    - Service(executable_path="/usr/bin/chromedriver")
+    - Mandatory: --headless, --no-sandbox, --disable-dev-shm-usage, --disable-gpu
     """
-    if USE_UNDETECTED:
+    is_cloud = is_cloud_environment()
+    
+    if USE_UNDETECTED and not is_cloud:
+        # Use undetected-chromedriver for local development
         options = uc.ChromeOptions()
         options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
@@ -76,30 +101,56 @@ def initialize_driver() -> webdriver.Chrome:
         
         driver = uc.Chrome(options=options)
     else:
+        # Standard Selenium for cloud deployment
         options = Options()
+        
+        # CRITICAL: Set binary location for Streamlit Cloud
+        if is_cloud and os.path.exists(CHROMIUM_BINARY_PATH):
+            options.binary_location = CHROMIUM_BINARY_PATH
+        
+        # Mandatory headless arguments for cloud
         options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-infobars')
+        options.add_argument('--remote-debugging-port=9222')
         options.add_argument(f'--user-agent={get_random_user_agent()}')
+        
+        # Anti-detection options
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
-        service = Service(ChromeDriverManager().install())
+        # CRITICAL: Set chromedriver path for Streamlit Cloud
+        if is_cloud and os.path.exists(CHROMEDRIVER_PATH):
+            service = Service(executable_path=CHROMEDRIVER_PATH)
+        else:
+            # Try to use webdriver-manager for local development
+            try:
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
+            except Exception:
+                # Fallback to system chromedriver
+                service = Service()
+        
         driver = webdriver.Chrome(service=service, options=options)
         
         # Execute CDP commands to prevent detection
-        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-            "userAgent": get_random_user_agent()
-        })
-        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-            'source': '''
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                })
-            '''
-        })
+        try:
+            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": get_random_user_agent()
+            })
+            driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    })
+                '''
+            })
+        except Exception:
+            pass  # CDP commands may not be available in all configurations
     
     driver.set_page_load_timeout(60)
     driver.implicitly_wait(10)
@@ -280,17 +331,8 @@ class BSEScraper:
             except:
                 pass  # Expiry might not be available for all instruments
             
-            # Set strike price
-            try:
-                strike_input = wait_for_element(
-                    self.driver, By.ID, "ContentPlaceHolder1_txtStrikePrice",
-                    timeout=10, clickable=True
-                )
-                strike_input.clear()
-                strike_input.send_keys(str(params.strike_price))
-                self.delays_applied.append(add_human_delay(0.5, 1))
-            except:
-                pass  # Strike price field might not be present
+            # Set strike price - CRITICAL: Use user-provided value
+            self._set_strike_price(params.strike_price, params.company_name)
             
             # Set from date
             try:
@@ -318,8 +360,131 @@ class BSEScraper:
             
             return True
             
+        except StrikePriceNotAvailableError:
+            raise  # Re-raise strike price errors for proper handling
         except Exception as e:
             raise ElementNotFoundError(f"Parameter configuration: {str(e)}")
+    
+    def _set_strike_price(self, strike_price: float, company_name: str = "") -> bool:
+        """
+        Set the strike price field with proper clearing and validation.
+        
+        Args:
+            strike_price: The user-provided strike price value
+            company_name: Company name for error messages
+            
+        Returns:
+            True if strike price was set successfully
+            
+        Raises:
+            StrikePriceNotAvailableError: If strike price is not available for the stock/expiry
+            ElementNotFoundError: If strike price field cannot be found
+        """
+        user_strike_price = str(int(strike_price)) if strike_price == int(strike_price) else str(strike_price)
+        
+        # First, try to find if strike price is a dropdown (Select element)
+        try:
+            strike_dropdown = self.driver.find_element(By.ID, "ContentPlaceHolder1_ddlStrikePrice")
+            select = Select(strike_dropdown)
+            
+            # Clear any previous selection by selecting default/first option if available
+            self.delays_applied.append(add_human_delay(0.3, 0.5))
+            
+            # Try to select the user-provided strike price
+            available_options = [opt.text.strip() for opt in select.options]
+            
+            # Check if the strike price exists in dropdown options
+            strike_found = False
+            for option_text in available_options:
+                # Match the strike price (handle formatting differences)
+                if user_strike_price in option_text or option_text == user_strike_price:
+                    select.select_by_visible_text(option_text)
+                    strike_found = True
+                    break
+            
+            if not strike_found:
+                # Strike price not available in dropdown
+                raise StrikePriceNotAvailableError(strike_price, company_name)
+            
+            self.delays_applied.append(add_human_delay(0.5, 1))
+            return True
+            
+        except NoSuchElementException:
+            # Strike price is not a dropdown, try input field
+            pass
+        except StrikePriceNotAvailableError:
+            raise  # Re-raise our custom exception
+        
+        # Try input field approach
+        try:
+            strike_input = wait_for_element(
+                self.driver, By.ID, "ContentPlaceHolder1_txtStrikePrice",
+                timeout=10, clickable=True
+            )
+            
+            # CRITICAL: Clear the field completely before entering new value
+            strike_input.click()
+            self.delays_applied.append(add_human_delay(0.2, 0.4))
+            
+            # Clear using multiple methods to ensure field is empty
+            strike_input.clear()
+            strike_input.send_keys(Keys.CONTROL + "a")  # Select all
+            strike_input.send_keys(Keys.DELETE)  # Delete selected
+            self.delays_applied.append(add_human_delay(0.2, 0.4))
+            
+            # Enter the user-provided strike price
+            strike_input.send_keys(user_strike_price)
+            self.delays_applied.append(add_human_delay(0.5, 1))
+            
+            # Verify the value was entered correctly
+            entered_value = strike_input.get_attribute('value')
+            if entered_value and user_strike_price not in entered_value:
+                # Value didn't stick, try again
+                strike_input.clear()
+                strike_input.send_keys(user_strike_price)
+            
+            return True
+            
+        except TimeoutException:
+            raise ElementNotFoundError("Strike price input field")
+        except NoSuchElementException:
+            raise ElementNotFoundError("Strike price field (neither dropdown nor input found)")
+    
+    def clear_form_for_next_stock(self) -> bool:
+        """
+        Clear form fields before processing the next stock.
+        This ensures no residual data from previous stock affects the next fetch.
+        """
+        try:
+            # Clear strike price field
+            try:
+                # Try dropdown first
+                strike_dropdown = self.driver.find_element(By.ID, "ContentPlaceHolder1_ddlStrikePrice")
+                select = Select(strike_dropdown)
+                if len(select.options) > 0:
+                    select.select_by_index(0)  # Select first/default option
+            except NoSuchElementException:
+                # Try input field
+                try:
+                    strike_input = self.driver.find_element(By.ID, "ContentPlaceHolder1_txtStrikePrice")
+                    strike_input.clear()
+                    strike_input.send_keys(Keys.CONTROL + "a")
+                    strike_input.send_keys(Keys.DELETE)
+                except NoSuchElementException:
+                    pass
+            
+            # Clear company search field
+            try:
+                search_input = self.driver.find_element(By.ID, "ContentPlaceHolder1_txtUnderlying")
+                search_input.clear()
+            except NoSuchElementException:
+                pass
+            
+            self.delays_applied.append(add_human_delay(0.5, 1))
+            return True
+            
+        except Exception:
+            return False  # Non-critical, continue anyway
     
     def select_option_type(self, option_type: str) -> bool:
         """Select Call or Put option type."""
@@ -444,6 +609,9 @@ class BSEScraper:
         
         # Add delay between fetches
         self.delays_applied.append(add_human_delay(2, 4))
+        
+        # Clear form before fetching Put data
+        self.clear_form_for_next_stock()
         
         # Navigate back to form for Put data
         self.driver.get(BSE_URL)

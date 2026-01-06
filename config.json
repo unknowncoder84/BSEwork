@@ -16,6 +16,78 @@
   },
   "history": [
     {
+      "timestamp": "2026-01-06T10:07:55.068056",
+      "stocks": [
+        "RELIANCE",
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 3,
+      "from_date": "07-Dec-2025",
+      "to_date": "06-Jan-2026",
+      "filename": "pending_export.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-06T10:07:31.342673",
+      "stocks": [
+        "RELIANCE",
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 3,
+      "from_date": "07-Dec-2025",
+      "to_date": "06-Jan-2026",
+      "filename": "pending_export.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-06T09:54:27.845078",
+      "stocks": [
+        "RELIANCE",
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 3,
+      "from_date": "07-Dec-2025",
+      "to_date": "06-Jan-2026",
+      "filename": "NSE_MultiStock_3_20251207_20260106.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-06T09:54:11.565741",
+      "stocks": [
+        "HDFCBANK"
+      ],
+      "stock_count": 1,
+      "from_date": "07-Dec-2025",
+      "to_date": "06-Jan-2026",
+      "filename": "HDFCBANK_data.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-06T09:54:11.552855",
+      "stocks": [
+        "TCS"
+      ],
+      "stock_count": 1,
+      "from_date": "07-Dec-2025",
+      "to_date": "06-Jan-2026",
+      "filename": "TCS_data.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-06T09:54:11.546781",
+      "stocks": [
+        "RELIANCE"
+      ],
+      "stock_count": 1,
+      "from_date": "07-Dec-2025",
+      "to_date": "06-Jan-2026",
+      "filename": "RELIANCE_data.xlsx",
+      "status": "success"
+    },
+    {
       "timestamp": "2026-01-04T20:57:55.974885",
       "stocks": [
         "RELIANCE",

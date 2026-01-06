@@ -186,3 +186,34 @@
   - Add usage examples with screenshots
   - Document known limitations and troubleshooting tips
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+- [x] 12. Implement dynamic strike price handling (Requirement 9)
+
+  - [x] 12.1 Update scraper to use user-provided strike price
+    - Implement `_set_strike_price()` method to handle both dropdown and input field scenarios
+    - Use `element.clear()` followed by `element.send_keys(user_strike_price)` for input boxes
+    - Use `Select` class with `select_by_visible_text()` for dropdown fields
+    - _Requirements: 9.1, 9.2_
+
+  - [x] 12.2 Add strike price validation
+    - Create `StrikePriceNotAvailableError` exception class in models.py
+    - Check if strike price exists in dropdown options before selecting
+    - Raise friendly error when strike price is not available for the selected expiry
+    - _Requirements: 9.3_
+
+  - [x] 12.3 Implement form clearing for multiple stocks
+    - Create `clear_form_for_next_stock()` method in scraper
+    - Clear strike price field before processing each new stock
+    - Clear company search field between stocks
+    - _Requirements: 9.4_
+
+  - [x] 12.4 Update UI to handle strike price errors
+    - Import `StrikePriceNotAvailableError` in app.py
+    - Display warning message when strike price is not available
+    - Ensure strike price metric updates in real-time
+    - _Requirements: 9.3, 9.6_
+
+  - [x] 12.5 Verify Excel output matches user strike price
+    - Ensure `FetchParameters.strike_price` flows through to data output
+    - Verify Strike Price column in preview matches user input
+    - _Requirements: 9.5_

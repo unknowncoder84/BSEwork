@@ -278,6 +278,18 @@ merged_columns = [
 *For any* error condition, the Streamlit Application should maintain all user input values so they can retry without re-entering data.
 **Validates: Requirements 8.5**
 
+### Property 15: Strike price is dynamically applied
+*For any* user-provided strike price value, the Selenium Driver should clear any existing value in the strike price field and enter the exact user-provided value before fetching data.
+**Validates: Requirements 9.1, 9.2, 9.4**
+
+### Property 16: Strike price validation provides feedback
+*For any* strike price that is not available for the selected stock and expiry, the system should display a user-friendly warning message without crashing.
+**Validates: Requirements 9.3**
+
+### Property 17: Output data matches user strike price
+*For any* successfully fetched data, the Strike Price column in both the preview and Excel output should exactly match the strike price entered by the user.
+**Validates: Requirements 9.5**
+
 ## Error Handling
 
 ### Error Categories and Handling Strategies

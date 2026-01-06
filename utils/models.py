@@ -86,6 +86,15 @@ class ElementNotFoundError(BSEScraperError):
         super().__init__(self.message)
 
 
+class StrikePriceNotAvailableError(BSEScraperError):
+    """Raised when the specified strike price is not available for the selected stock/expiry."""
+    def __init__(self, strike_price: float, company_name: str = ""):
+        company_info = f" for {company_name}" if company_name else ""
+        self.message = f"Strike Price {strike_price}{company_info} not available for this expiry"
+        self.strike_price = strike_price
+        super().__init__(self.message)
+
+
 def validate_inputs(company_name: str, instrument_type: str, expiry_date: date,
                    strike_price: float, from_date: date, to_date: date) -> Tuple[bool, List[str]]:
     """

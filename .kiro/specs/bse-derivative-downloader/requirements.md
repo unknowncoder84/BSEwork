@@ -118,3 +118,16 @@ The BSE Derivative Data Downloader is a web-based application that automates the
 3. WHEN the BSE website is unreachable THEN the Streamlit Application SHALL display a connectivity error message
 4. WHEN an unexpected error occurs THEN the system SHALL log the error details and display a user-friendly message
 5. WHEN errors are displayed THEN the Streamlit Application SHALL maintain the user's input values for easy retry
+
+### Requirement 9
+
+**User Story:** As a financial analyst, I want the strike price I enter in the UI to be used exactly when fetching data, so that the downloaded data corresponds to my specified strike price.
+
+#### Acceptance Criteria
+
+1. WHEN the user enters a strike price in the UI THEN the Selenium Driver SHALL use that exact strike price value when configuring the BSE website form
+2. WHEN the Selenium Driver configures the strike price field THEN the system SHALL clear any existing value before entering the user-provided strike price
+3. WHEN the strike price is not available for the selected stock and expiry THEN the Streamlit Application SHALL display a warning message: "Strike Price not available for this expiry"
+4. WHEN multiple stocks are selected THEN the Selenium Driver SHALL clear the previous strike price from the web form before entering the strike price for the next stock
+5. WHEN data is fetched and displayed THEN the Strike Price column in the preview and Excel output SHALL match exactly the strike price entered by the user
+6. WHEN the strike price input changes THEN the Streamlit Application SHALL update the displayed strike price metric in real-time
