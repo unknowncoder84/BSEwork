@@ -3,7 +3,11 @@ Quantum Market Suite - Scraper Base
 
 Base scraper class with anti-detection measures including random delays,
 user-agent rotation, and rate limit handling.
-Configured for Streamlit Cloud deployment with system Chromium.
+
+CRITICAL: Configured for Streamlit Cloud deployment with system Chromium.
+Binary paths explicitly set as per requirements:
+- options.binary_location = "/usr/bin/chromium"
+- Service(executable_path="/usr/bin/chromedriver")
 """
 
 import random
@@ -18,7 +22,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
-# Cloud deployment paths - CRITICAL for Streamlit Cloud
+# CRITICAL: Cloud deployment paths for Streamlit Cloud
+# These MUST be set explicitly as per requirements
 CHROMIUM_BINARY_PATH = "/usr/bin/chromium"
 CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
 
@@ -61,14 +66,20 @@ class ScraperBase(ABC):
         self._is_cloud = is_cloud_environment()
 
     def _get_chrome_options(self) -> Options:
-        """Configure Chrome options for anti-detection and cloud deployment."""
+        """
+        Configure Chrome options for anti-detection and cloud deployment.
+        
+        CRITICAL: Explicitly sets binary_location = "/usr/bin/chromium"
+        as per requirements for Streamlit Cloud compatibility.
+        """
         options = Options()
         
         # CRITICAL: Set binary location for Streamlit Cloud
+        # options.binary_location = "/usr/bin/chromium"
         if self._is_cloud and os.path.exists(CHROMIUM_BINARY_PATH):
             options.binary_location = CHROMIUM_BINARY_PATH
         
-        # Mandatory headless arguments for cloud
+        # Mandatory headless arguments for cloud deployment
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
@@ -129,7 +140,12 @@ class ScraperBase(ABC):
         return actual_wait
     
     def init_driver(self) -> webdriver.Chrome:
-        """Initialize Chrome WebDriver with anti-detection settings for cloud deployment."""
+        """
+        Initialize Chrome WebDriver with anti-detection settings for cloud deployment.
+        
+        CRITICAL: Uses Service(executable_path="/usr/bin/chromedriver")
+        as per requirements for Streamlit Cloud compatibility.
+        """
         if self.driver is not None:
             return self.driver
         
@@ -137,8 +153,9 @@ class ScraperBase(ABC):
             options = self._get_chrome_options()
             
             # CRITICAL: Set chromedriver path for Streamlit Cloud
+            # Service(executable_path="/usr/bin/chromedriver")
             if self._is_cloud and os.path.exists(CHROMEDRIVER_PATH):
-                service = Service(CHROMEDRIVER_PATH)
+                service = Service(executable_path=CHROMEDRIVER_PATH)
             else:
                 # Try webdriver-manager for local development
                 try:
