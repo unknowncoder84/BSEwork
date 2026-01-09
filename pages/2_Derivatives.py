@@ -1,276 +1,241 @@
 """
-PRK's Exchange Suite - Derivatives Page
+PRK Exchange Suite - Derivatives Page
 ═══════════════════════════════════════════════════════════════════════════════
-TRUE-DATA ENGINE:
-- api/option-chain-indices (NIFTY/BANKNIFTY)
-- api/option-chain-equities (Stock Options)
-- Google Cross-Check for underlying
+DATA SOURCE: nsepython (NSE Official API)
+- option_chain("NIFTY") for live option chain data
 
-PERSISTENCE VAULT:
-- Receives stock_ticker from Equity page
-- Shares captured_options across pages
+FEATURES:
+- Option Chain Table: Strike, Call OI, Put OI, LTP
+- Put-Call Ratio (PCR) Indicator
+- Persistence: selected_ticker from st.session_state
 ═══════════════════════════════════════════════════════════════════════════════
 """
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import date, timedelta, datetime
-from typing import Optional, List
-import time
-import io
-import requests
+from datetime import datetime
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Derivatives | PRK's Exchange Suite", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="Derivatives | PRK Exchange Suite",
+    page_icon="📊",
+    layout="wide"
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BLOOMBERG CSS
+# CUSTOM CSS
 # ══════════════════════════════════════════════════════════════════════════════
-BLOOMBERG_CSS = """
+st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
-:root{--bg-primary:#0a0a0f;--bg-card:#1a1a24;--accent-blue:#00d4ff;--accent-green:#00ff88;--accent-red:#ff4757;--text-primary:#fff;--text-secondary:#8b8b9a;--border-color:#2a2a3a}
-.stApp{background:linear-gradient(180deg,var(--bg-primary) 0%,#0d0d14 100%);font-family:'Inter',sans-serif}
-section[data-testid="stSidebar"]{background:linear-gradient(180deg,#0d0d14 0%,#1a1a24 100%)!important;border-right:1px solid var(--border-color)!important}
-.stDataFrame{font-family:'JetBrains Mono',monospace!important}
-.stDataFrame th{background:linear-gradient(180deg,#1e1e2e 0%,#16161f 100%)!important;color:var(--accent-blue)!important;font-weight:600!important;text-transform:uppercase!important;font-size:0.75rem!important;border-bottom:2px solid var(--accent-blue)!important}
-.stDataFrame td{color:var(--text-primary)!important;border-bottom:1px solid var(--border-color)!important}
-[data-testid="stMetric"]{background:linear-gradient(135deg,var(--bg-card) 0%,#1e1e2e 100%);border:1px solid var(--border-color);border-radius:12px;padding:1rem}
-[data-testid="stMetricLabel"]{color:var(--text-secondary)!important;font-size:0.75rem!important;text-transform:uppercase!important;letter-spacing:1px!important}
-[data-testid="stMetricValue"]{color:var(--text-primary)!important;font-family:'JetBrains Mono',monospace!important;font-weight:700!important}
-.stButton>button{background:linear-gradient(135deg,var(--accent-blue) 0%,#0099cc 100%)!important;color:#000!important;font-weight:600!important;border:none!important;border-radius:8px!important}
-.call-btn button{background:linear-gradient(135deg,var(--accent-green),#00cc6a)!important}
-.put-btn button{background:linear-gradient(135deg,var(--accent-red),#ff3344)!important}
-.status-live{background:linear-gradient(135deg,var(--accent-green),#00cc6a);color:#000;padding:4px 12px;border-radius:20px;font-size:0.7rem;font-weight:700;text-transform:uppercase}
-.api-badge{background:var(--bg-card);border:1px solid var(--accent-blue);color:var(--accent-blue);padding:6px 14px;border-radius:6px;font-size:0.75rem;font-family:'JetBrains Mono',monospace;display:inline-block;margin:4px}
-.call-badge{border-color:var(--accent-green);color:var(--accent-green)}
-.put-badge{border-color:var(--accent-red);color:var(--accent-red)}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.stApp { font-family: 'Inter', sans-serif; }
+
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+    border-radius: 12px;
+    padding: 1rem;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+[data-testid="stMetricLabel"] {
+    color: #94a3b8 !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #ffffff !important;
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+}
+
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+}
+
+.stButton > button {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(34, 197, 94, 0.4);
+}
+
+.source-badge {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    display: inline-block;
+}
+
+.pcr-bullish {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.pcr-bearish {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.pcr-neutral {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+}
 </style>
-"""
-st.markdown(BLOOMBERG_CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SYMBOLS
 # ══════════════════════════════════════════════════════════════════════════════
 INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]
 STOCK_SYMBOLS = [
-    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "SBIN",
-    "BHARTIARTL", "KOTAKBANK", "ITC", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
-    "BAJFINANCE", "TITAN", "SUNPHARMA", "TATAMOTORS", "TATASTEEL"
+    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL",
+    "KOTAKBANK", "ITC", "LT", "AXISBANK", "MARUTI", "BAJFINANCE", "TITAN",
+    "SUNPHARMA", "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"
 ]
 ALL_SYMBOLS = INDEX_SYMBOLS + STOCK_SYMBOLS
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TRUE-DATA ENGINE (Option Chain)
+# NSEPYTHON OPTION CHAIN FETCHER
 # ══════════════════════════════════════════════════════════════════════════════
-class OptionChainEngine:
+@st.cache_data(ttl=60)
+def fetch_option_chain(symbol: str) -> tuple:
     """
-    True-Data Engine for Option Chain fetching.
-    Uses api/option-chain-indices and api/option-chain-equities.
+    Fetch option chain using nsepython.
+    Returns: (call_df, put_df, underlying_price, pcr)
     """
-    BASE_URL = "https://www.nseindia.com"
-    API_CHAIN_INDEX = "https://www.nseindia.com/api/option-chain-indices"
-    API_CHAIN_EQUITY = "https://www.nseindia.com/api/option-chain-equities"
-    
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": "https://www.nseindia.com",
-        "X-Requested-With": "XMLHttpRequest",
-    }
-    
-    TIMEOUT = 35
-    WARMUP = 8
-    
-    def __init__(self):
-        self.session: Optional[requests.Session] = None
-        self.cookies_captured = False
-    
-    def _handshake(self) -> bool:
-        """Excel Trick: Capture nsit + bm_sv cookies."""
-        try:
-            if self.session:
-                self.session.close()
-            self.session = requests.Session()
-            self.session.headers.update(self.HEADERS)
-            resp = self.session.get(self.BASE_URL, timeout=self.TIMEOUT)
-            if resp.status_code == 200:
-                time.sleep(self.WARMUP)
-                try:
-                    self.session.get(f"{self.BASE_URL}/option-chain", timeout=20)
-                    time.sleep(2)
-                except:
-                    pass
-                self.cookies_captured = True
-                return True
-            return False
-        except:
-            return False
-    
-    def _fetch(self, url: str, params: dict = None) -> Optional[dict]:
-        """Fetch with retry."""
-        for attempt in range(3):
-            try:
-                if not self.cookies_captured:
-                    if not self._handshake():
-                        continue
-                resp = self.session.get(url, params=params, timeout=self.TIMEOUT)
-                if resp.status_code == 200:
-                    return resp.json()
-                elif resp.status_code == 403:
-                    self._handshake()
-                    continue
-            except:
-                time.sleep(2)
-                continue
-        return None
-    
-    def fetch_option_chain(self, symbol: str) -> Optional[dict]:
-        """Fetch option chain from appropriate API."""
-        if symbol in INDEX_SYMBOLS:
-            return self._fetch(f"{self.API_CHAIN_INDEX}?symbol={symbol}")
-        else:
-            return self._fetch(f"{self.API_CHAIN_EQUITY}?symbol={symbol}")
-    
-    def parse_chain(self, data: dict, strike: float = None) -> tuple:
-        """Parse option chain into Call and Put DataFrames."""
-        if not data or "records" not in data:
-            return pd.DataFrame(), pd.DataFrame()
+    try:
+        from nsepython import option_chain
         
-        records = data["records"]
-        data_list = records.get("data", [])
+        # Fetch option chain
+        data = option_chain(symbol)
+        
+        if data is None or 'records' not in data:
+            return pd.DataFrame(), pd.DataFrame(), 0, 0
+        
+        records = data['records']
+        underlying = records.get('underlyingValue', 0)
+        data_list = records.get('data', [])
         
         calls = []
         puts = []
+        total_call_oi = 0
+        total_put_oi = 0
         
         for record in data_list:
-            strike_price = record.get("strikePrice", 0)
-            expiry = record.get("expiryDate", "")
-            
-            # Filter by strike if specified
-            if strike and abs(strike_price - strike) > 500:
-                continue
+            strike = record.get('strikePrice', 0)
+            expiry = record.get('expiryDate', '')
             
             # Call (CE)
-            if "CE" in record:
-                ce = record["CE"]
+            if 'CE' in record:
+                ce = record['CE']
+                call_oi = ce.get('openInterest', 0)
+                total_call_oi += call_oi
                 calls.append({
-                    'Strike': strike_price,
+                    'Strike': strike,
                     'Expiry': expiry,
-                    'LTP': ce.get('lastPrice', 0),
-                    'Change': ce.get('change', 0),
-                    'Change%': ce.get('pChange', 0),
-                    'Volume': ce.get('totalTradedVolume', 0),
-                    'OI': ce.get('openInterest', 0),
-                    'OI Change': ce.get('changeinOpenInterest', 0),
-                    'IV': ce.get('impliedVolatility', 0),
-                    'Bid': ce.get('bidprice', 0),
-                    'Ask': ce.get('askPrice', 0),
+                    'Call LTP': ce.get('lastPrice', 0),
+                    'Call Change': ce.get('change', 0),
+                    'Call OI': call_oi,
+                    'Call OI Chg': ce.get('changeinOpenInterest', 0),
+                    'Call Volume': ce.get('totalTradedVolume', 0),
+                    'Call IV': ce.get('impliedVolatility', 0),
                 })
             
             # Put (PE)
-            if "PE" in record:
-                pe = record["PE"]
+            if 'PE' in record:
+                pe = record['PE']
+                put_oi = pe.get('openInterest', 0)
+                total_put_oi += put_oi
                 puts.append({
-                    'Strike': strike_price,
+                    'Strike': strike,
                     'Expiry': expiry,
-                    'LTP': pe.get('lastPrice', 0),
-                    'Change': pe.get('change', 0),
-                    'Change%': pe.get('pChange', 0),
-                    'Volume': pe.get('totalTradedVolume', 0),
-                    'OI': pe.get('openInterest', 0),
-                    'OI Change': pe.get('changeinOpenInterest', 0),
-                    'IV': pe.get('impliedVolatility', 0),
-                    'Bid': pe.get('bidprice', 0),
-                    'Ask': pe.get('askPrice', 0),
+                    'Put LTP': pe.get('lastPrice', 0),
+                    'Put Change': pe.get('change', 0),
+                    'Put OI': put_oi,
+                    'Put OI Chg': pe.get('changeinOpenInterest', 0),
+                    'Put Volume': pe.get('totalTradedVolume', 0),
+                    'Put IV': pe.get('impliedVolatility', 0),
                 })
         
-        call_df = pd.DataFrame(calls) if calls else self._generate_fallback("CE")
-        put_df = pd.DataFrame(puts) if puts else self._generate_fallback("PE")
+        call_df = pd.DataFrame(calls) if calls else pd.DataFrame()
+        put_df = pd.DataFrame(puts) if puts else pd.DataFrame()
         
-        return call_df, put_df
+        # Calculate PCR (Put-Call Ratio)
+        pcr = total_put_oi / total_call_oi if total_call_oi > 0 else 0
+        
+        return call_df, put_df, underlying, pcr
     
-    def _generate_fallback(self, opt_type: str) -> pd.DataFrame:
-        """Generate fallback option data."""
-        rows = []
-        base_strike = 24000 if opt_type == "CE" else 24000
-        for i in range(-5, 6):
-            strike = base_strike + (i * 100)
-            rows.append({
-                'Strike': strike,
-                'Expiry': (date.today() + timedelta(days=30)).strftime('%d-%b-%Y'),
-                'LTP': np.random.uniform(50, 500),
-                'Change': np.random.uniform(-50, 50),
-                'Change%': np.random.uniform(-10, 10),
-                'Volume': np.random.randint(1000, 100000),
-                'OI': np.random.randint(50000, 2000000),
-                'OI Change': np.random.randint(-50000, 50000),
-                'IV': np.random.uniform(10, 30),
-                'Bid': np.random.uniform(40, 450),
-                'Ask': np.random.uniform(50, 500),
-            })
-        return pd.DataFrame(rows)
-    
-    def close(self):
-        if self.session:
-            self.session.close()
-        self.cookies_captured = False
+    except ImportError:
+        st.error("nsepython not installed. Run: pip install nsepython")
+        return pd.DataFrame(), pd.DataFrame(), 0, 0
+    except Exception as e:
+        st.error(f"Error fetching option chain: {e}")
+        return pd.DataFrame(), pd.DataFrame(), 0, 0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# EXCEL GENERATOR
-# ══════════════════════════════════════════════════════════════════════════════
-def create_options_excel(call_df: pd.DataFrame, put_df: pd.DataFrame, symbol: str) -> bytes:
-    """Create 2-tab Excel with Call and Put data."""
-    output = io.BytesIO()
-    from openpyxl.styles import Font, Alignment, PatternFill
-    from openpyxl.utils import get_column_letter
+def create_combined_chain(call_df: pd.DataFrame, put_df: pd.DataFrame) -> pd.DataFrame:
+    """Create combined option chain table."""
+    if call_df.empty and put_df.empty:
+        return pd.DataFrame()
     
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        if not call_df.empty:
-            call_df.to_excel(writer, sheet_name='CALL_CE', index=False)
-        else:
-            pd.DataFrame({'Info': ['No call data']}).to_excel(writer, sheet_name='CALL_CE', index=False)
-        
-        if not put_df.empty:
-            put_df.to_excel(writer, sheet_name='PUT_PE', index=False)
-        else:
-            pd.DataFrame({'Info': ['No put data']}).to_excel(writer, sheet_name='PUT_PE', index=False)
-        
-        colors = {'CALL_CE': '10B981', 'PUT_PE': 'EF4444'}
-        for sn in writer.book.sheetnames:
-            ws = writer.book[sn]
-            color = colors.get(sn, '1F4E79')
-            for cell in ws[1]:
-                cell.font = Font(bold=True, color="FFFFFF")
-                cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-                cell.alignment = Alignment(horizontal="center")
-            for i in range(1, ws.max_column + 1):
-                ws.column_dimensions[get_column_letter(i)].width = 12
-            ws.freeze_panes = 'A2'
-    
-    output.seek(0)
-    return output.getvalue()
+    # Merge on Strike and Expiry
+    if not call_df.empty and not put_df.empty:
+        combined = pd.merge(
+            call_df[['Strike', 'Expiry', 'Call OI', 'Call LTP', 'Call IV']],
+            put_df[['Strike', 'Expiry', 'Put OI', 'Put LTP', 'Put IV']],
+            on=['Strike', 'Expiry'],
+            how='outer'
+        )
+        combined = combined.sort_values('Strike')
+        return combined
+    elif not call_df.empty:
+        return call_df
+    else:
+        return put_df
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("# ⚡ PRK's Exchange Suite")
-    st.markdown('<span class="status-live">● LIVE</span>', unsafe_allow_html=True)
-    st.caption("📊 Derivatives Page")
+    st.markdown("# 📈 PRK Exchange Suite")
+    st.caption("Derivatives Analysis")
     
     st.divider()
     
     st.markdown("### 📊 Symbol Selection")
     
-    # Get ticker from persistence vault (shared from Equity page)
-    default_ticker = st.session_state.get("stock_ticker", "NIFTY")
+    # Get ticker from session state (persisted from Equity page)
+    default_ticker = st.session_state.get("selected_ticker", "NIFTY")
     if default_ticker not in ALL_SYMBOLS:
         default_ticker = "NIFTY"
     
@@ -281,199 +246,193 @@ with st.sidebar:
         key="deriv_symbol_select"
     )
     
-    # Update persistence vault
-    st.session_state["stock_ticker"] = selected_symbol
+    # Update session state
+    st.session_state["selected_ticker"] = selected_symbol
     
     is_index = selected_symbol in INDEX_SYMBOLS
     st.caption(f"Type: {'Index' if is_index else 'Stock'}")
     
     st.divider()
     
-    st.markdown("### 💰 Strike Filter")
-    strike_filter = st.number_input(
-        "ATM Strike",
-        min_value=100.0,
-        max_value=100000.0,
-        value=24000.0 if is_index else 3000.0,
-        step=100.0,
-        key="strike_filter"
-    )
+    st.markdown("### 💾 Session State")
+    st.caption(f"Ticker: **{st.session_state.get('selected_ticker', 'None')}**")
+    
+    if st.session_state.get("equity_data") is not None:
+        st.success("✅ Equity data available")
     
     st.divider()
     
-    st.markdown("### 🔒 Persistence Vault")
-    st.caption(f"Ticker: **{st.session_state.get('stock_ticker', 'None')}**")
-    
-    # Show data from Equity page if available
-    if st.session_state.get("last_ltp"):
-        st.metric("Equity LTP", f"₹{st.session_state['last_ltp']:,.2f}")
-    
-    if st.session_state.get("google_price"):
-        st.metric("Google Price", f"₹{st.session_state['google_price']:,.2f}")
+    st.markdown("### 📡 Data Source")
+    st.markdown('<span class="source-badge">nsepython</span>', unsafe_allow_html=True)
+    st.caption(f"`option_chain('{selected_symbol}')`")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN CONTENT
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("# 📊 Derivatives (Option Chain)")
-st.caption(f"True-Data Engine | api/option-chain-indices | api/option-chain-equities")
+st.caption(f"Data Source: nsepython | Symbol: {selected_symbol}")
 
-# API Badges
-api_type = "api/option-chain-indices" if is_index else "api/option-chain-equities"
-st.markdown(f"""
-<span class="api-badge">{api_type}</span>
-<span class="api-badge call-badge">CALL (CE)</span>
-<span class="api-badge put-badge">PUT (PE)</span>
-""", unsafe_allow_html=True)
+st.markdown(f'<span class="source-badge">option_chain("{selected_symbol}")</span>', unsafe_allow_html=True)
 
 st.divider()
 
-# Current Selection
-st.markdown(f"### 📊 {selected_symbol} Option Chain")
-st.caption(f"ATM Strike: ₹{strike_filter:,.0f} | Type: {'Index' if is_index else 'Stock'}")
-
 # Show persistence info
-if st.session_state.get("captured_equity") is not None:
-    st.success(f"✅ Equity data loaded from Persistence Vault ({st.session_state.get('stock_ticker', 'Unknown')})")
+if st.session_state.get("equity_data") is not None:
+    st.success(f"✅ Ticker '{st.session_state.get('selected_ticker')}' loaded from Equity page via session_state")
 
 # Fetch Button
 if st.button("🚀 Fetch Option Chain", use_container_width=True, type="primary"):
-    status = st.empty()
-    progress = st.progress(0)
-    
-    status.info("🔄 Initializing True-Data Engine (Excel Trick Session)...")
-    progress.progress(10)
-    
-    engine = OptionChainEngine()
-    
-    # Step 1: Handshake
-    status.info("🔐 Capturing nsit + bm_sv cookies (8s warmup)...")
-    progress.progress(20)
-    
-    if engine._handshake():
-        st.session_state["session_valid"] = True
-        status.success("✅ Session established")
-    else:
-        status.warning("⚠️ Session init failed - using fallback")
-    
-    progress.progress(40)
-    
-    # Step 2: Fetch Option Chain
-    status.info(f"📡 Fetching from {api_type}?symbol={selected_symbol}...")
-    progress.progress(60)
-    
-    chain_data = engine.fetch_option_chain(selected_symbol)
-    
-    progress.progress(80)
-    
-    # Step 3: Parse Chain
-    status.info("📊 Parsing Call (CE) and Put (PE) data...")
-    call_df, put_df = engine.parse_chain(chain_data, strike_filter)
-    
-    # Store in persistence vault
-    st.session_state["captured_options"] = {"call": call_df, "put": put_df}
-    st.session_state["stock_ticker"] = selected_symbol
-    
-    progress.progress(100)
-    status.success(f"✅ Fetched {len(call_df)} Calls + {len(put_df)} Puts for {selected_symbol}")
-    
-    engine.close()
+    with st.spinner(f"Fetching {selected_symbol} option chain from nsepython..."):
+        call_df, put_df, underlying, pcr = fetch_option_chain(selected_symbol)
+        
+        if not call_df.empty or not put_df.empty:
+            st.session_state["options_data"] = {
+                "call": call_df,
+                "put": put_df,
+                "underlying": underlying,
+                "pcr": pcr
+            }
+            st.session_state["selected_ticker"] = selected_symbol
+            st.success(f"✅ Fetched {len(call_df)} Calls + {len(put_df)} Puts")
+        else:
+            st.error("❌ No option chain data returned")
 
 st.divider()
 
 # Display Data
-if st.session_state.get("captured_options"):
-    options = st.session_state["captured_options"]
-    call_df = options.get("call", pd.DataFrame())
-    put_df = options.get("put", pd.DataFrame())
+if st.session_state.get("options_data"):
+    data = st.session_state["options_data"]
+    call_df = data["call"]
+    put_df = data["put"]
+    underlying = data["underlying"]
+    pcr = data["pcr"]
     
-    # Summary Metrics
-    st.markdown("### 📊 Option Chain Summary")
+    # ══════════════════════════════════════════════════════════════════════════
+    # PCR INDICATOR (Put-Call Ratio)
+    # ══════════════════════════════════════════════════════════════════════════
+    st.markdown("### 📊 Put-Call Ratio (PCR) Indicator")
+    
+    pcr_col1, pcr_col2, pcr_col3 = st.columns([1, 2, 1])
+    
+    with pcr_col2:
+        if pcr > 1.2:
+            sentiment = "BULLISH"
+            css_class = "pcr-bullish"
+            explanation = "High PCR (>1.2) indicates more Put writing → Bullish sentiment"
+        elif pcr < 0.8:
+            sentiment = "BEARISH"
+            css_class = "pcr-bearish"
+            explanation = "Low PCR (<0.8) indicates more Call writing → Bearish sentiment"
+        else:
+            sentiment = "NEUTRAL"
+            css_class = "pcr-neutral"
+            explanation = "PCR between 0.8-1.2 indicates balanced market"
+        
+        st.markdown(f'<div class="{css_class}">PCR: {pcr:.2f} • {sentiment}</div>', unsafe_allow_html=True)
+        st.caption(explanation)
+    
+    st.divider()
+    
+    # ══════════════════════════════════════════════════════════════════════════
+    # KPI METRICS
+    # ══════════════════════════════════════════════════════════════════════════
+    st.markdown("### 📊 Market Overview")
     
     m1, m2, m3, m4 = st.columns(4)
     
     with m1:
-        st.metric("CALL CONTRACTS", len(call_df))
+        st.metric("UNDERLYING", f"₹{underlying:,.2f}")
+    
     with m2:
-        st.metric("PUT CONTRACTS", len(put_df))
+        st.metric("PCR", f"{pcr:.2f}")
+    
     with m3:
-        if not call_df.empty and 'OI' in call_df.columns:
-            st.metric("CALL OI", f"{call_df['OI'].sum():,.0f}")
+        total_call_oi = call_df['Call OI'].sum() if 'Call OI' in call_df.columns else 0
+        st.metric("TOTAL CALL OI", f"{total_call_oi:,.0f}")
+    
     with m4:
-        if not put_df.empty and 'OI' in put_df.columns:
-            st.metric("PUT OI", f"{put_df['OI'].sum():,.0f}")
+        total_put_oi = put_df['Put OI'].sum() if 'Put OI' in put_df.columns else 0
+        st.metric("TOTAL PUT OI", f"{total_put_oi:,.0f}")
     
     st.divider()
     
-    # Tabs for Call and Put
+    # ══════════════════════════════════════════════════════════════════════════
+    # OPTION CHAIN TABLE
+    # ══════════════════════════════════════════════════════════════════════════
+    st.markdown("### 📋 Option Chain Table")
+    st.caption("Strike | Call OI | Put OI | LTP")
+    
+    # Create combined table
+    combined = create_combined_chain(call_df, put_df)
+    
+    if not combined.empty:
+        # Format for display
+        display_df = combined.copy()
+        
+        # Format columns
+        for col in ['Call LTP', 'Put LTP']:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(lambda x: f"₹{x:,.2f}" if pd.notna(x) else "-")
+        
+        for col in ['Call OI', 'Put OI']:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "-")
+        
+        for col in ['Call IV', 'Put IV']:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "-")
+        
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+    
+    st.divider()
+    
+    # ══════════════════════════════════════════════════════════════════════════
+    # SEPARATE TABS
+    # ══════════════════════════════════════════════════════════════════════════
+    st.markdown("### 📊 Detailed View")
+    
     tab1, tab2 = st.tabs(["🟢 CALL (CE)", "🔴 PUT (PE)"])
     
     with tab1:
-        st.markdown("### 🟢 Call Options (CE)")
-        
         if not call_df.empty:
-            # Call Metrics
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                if 'LTP' in call_df.columns:
-                    st.metric("AVG LTP", f"₹{call_df['LTP'].mean():,.2f}")
-            with c2:
-                if 'Volume' in call_df.columns:
-                    st.metric("TOTAL VOL", f"{call_df['Volume'].sum():,.0f}")
-            with c3:
-                if 'OI' in call_df.columns:
-                    st.metric("TOTAL OI", f"{call_df['OI'].sum():,.0f}")
-            with c4:
-                if 'IV' in call_df.columns:
-                    st.metric("AVG IV", f"{call_df['IV'].mean():.2f}%")
-            
             st.dataframe(call_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No Call data available")
+            st.info("No Call data")
     
     with tab2:
-        st.markdown("### 🔴 Put Options (PE)")
-        
         if not put_df.empty:
-            # Put Metrics
-            p1, p2, p3, p4 = st.columns(4)
-            with p1:
-                if 'LTP' in put_df.columns:
-                    st.metric("AVG LTP", f"₹{put_df['LTP'].mean():,.2f}")
-            with p2:
-                if 'Volume' in put_df.columns:
-                    st.metric("TOTAL VOL", f"{put_df['Volume'].sum():,.0f}")
-            with p3:
-                if 'OI' in put_df.columns:
-                    st.metric("TOTAL OI", f"{put_df['OI'].sum():,.0f}")
-            with p4:
-                if 'IV' in put_df.columns:
-                    st.metric("AVG IV", f"{put_df['IV'].mean():.2f}%")
-            
             st.dataframe(put_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No Put data available")
-    
-    st.divider()
+            st.info("No Put data")
     
     # Download
-    st.markdown("### 📥 Download")
-    excel = create_options_excel(call_df, put_df, selected_symbol)
-    st.download_button(
-        "📥 Download Options.xlsx (CALL_CE + PUT_PE)",
-        excel,
-        f"{selected_symbol}_Options.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+    st.divider()
+    if not combined.empty:
+        st.download_button(
+            "📥 Download Option Chain CSV",
+            combined.to_csv(index=False),
+            f"{selected_symbol}_options.csv",
+            "text/csv",
+            use_container_width=True
+        )
 
 else:
-    st.info("👆 Click **Fetch Option Chain** to load data from NSE Internal API")
+    st.info("👆 Click **Fetch Option Chain** to load data from nsepython")
     
-    # Show hint about persistence
-    if st.session_state.get("stock_ticker"):
-        st.caption(f"💡 Tip: Ticker '{st.session_state['stock_ticker']}' loaded from Equity page via Persistence Vault")
+    # Show example
+    st.markdown("### 📖 Example Usage")
+    st.code("""
+from nsepython import option_chain
+
+# Fetch NIFTY option chain
+data = option_chain("NIFTY")
+
+# Returns: records with CE (Call) and PE (Put) data
+# Including: Strike, OI, LTP, IV, Volume, etc.
+    """, language="python")
 
 # Footer
 st.divider()
-st.caption(f"⚡ PRK's Exchange Suite | Derivatives Page | {datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"📈 PRK Exchange Suite | Derivatives Page | {datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"Data: nsepython (NSE India) | Symbol: {selected_symbol}")
