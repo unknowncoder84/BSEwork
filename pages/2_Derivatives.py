@@ -1,3 +1,10 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# STREAMLIT CLOUD TMP CACHE FIX - MUST BE AT VERY TOP
+# ══════════════════════════════════════════════════════════════════════════════
+import appdirs as ad
+ad.user_cache_dir = lambda *args: "/tmp"
+# ══════════════════════════════════════════════════════════════════════════════
+
 """
 PRK Exchange Suite - Derivatives Page
 ═══════════════════════════════════════════════════════════════════════════════
@@ -24,6 +31,16 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SESSION STATE INITIALIZATION (Ensure persistence)
+# ══════════════════════════════════════════════════════════════════════════════
+if "selected_ticker" not in st.session_state:
+    st.session_state["selected_ticker"] = "NIFTY"
+if "options_data" not in st.session_state:
+    st.session_state["options_data"] = None
+if "pcr_value" not in st.session_state:
+    st.session_state["pcr_value"] = None
+
+# ══════════════════════════════════════════════════════════════════════════════
 # CUSTOM CSS
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
@@ -42,7 +59,6 @@ st.markdown("""
 [data-testid="stMetricLabel"] {
     color: #94a3b8 !important;
     font-size: 0.85rem !important;
-    font-weight: 500 !important;
     text-transform: uppercase !important;
 }
 
@@ -62,11 +78,6 @@ section[data-testid="stSidebar"] {
     font-weight: 600;
     border: none;
     border-radius: 8px;
-}
-
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(34, 197, 94, 0.4);
 }
 
 .source-badge {
@@ -116,11 +127,9 @@ section[data-testid="stSidebar"] {
 # SYMBOLS
 # ══════════════════════════════════════════════════════════════════════════════
 INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]
-STOCK_SYMBOLS = [
-    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL",
-    "KOTAKBANK", "ITC", "LT", "AXISBANK", "MARUTI", "BAJFINANCE", "TITAN",
-    "SUNPHARMA", "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"
-]
+STOCK_SYMBOLS = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL",
+                 "KOTAKBANK", "ITC", "LT", "AXISBANK", "MARUTI", "BAJFINANCE", "TITAN",
+                 "SUNPHARMA", "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"]
 ALL_SYMBOLS = INDEX_SYMBOLS + STOCK_SYMBOLS
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -128,14 +137,10 @@ ALL_SYMBOLS = INDEX_SYMBOLS + STOCK_SYMBOLS
 # ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=60)
 def fetch_option_chain(symbol: str) -> tuple:
-    """
-    Fetch option chain using nsepython.
-    Returns: (call_df, put_df, underlying_price, pcr)
-    """
+    """Fetch option chain using nsepython."""
     try:
         from nsepython import option_chain
         
-        # Fetch option chain
         data = option_chain(symbol)
         
         if data is None or 'records' not in data:
@@ -145,23 +150,19 @@ def fetch_option_chain(symbol: str) -> tuple:
         underlying = records.get('underlyingValue', 0)
         data_list = records.get('data', [])
         
-        calls = []
-        puts = []
-        total_call_oi = 0
-        total_put_oi = 0
+        calls, puts = [], []
+        total_call_oi, total_put_oi = 0, 0
         
         for record in data_list:
             strike = record.get('strikePrice', 0)
             expiry = record.get('expiryDate', '')
             
-            # Call (CE)
             if 'CE' in record:
                 ce = record['CE']
                 call_oi = ce.get('openInterest', 0)
                 total_call_oi += call_oi
                 calls.append({
-                    'Strike': strike,
-                    'Expiry': expiry,
+                    'Strike': strike, 'Expiry': expiry,
                     'Call LTP': ce.get('lastPrice', 0),
                     'Call Change': ce.get('change', 0),
                     'Call OI': call_oi,
@@ -170,14 +171,12 @@ def fetch_option_chain(symbol: str) -> tuple:
                     'Call IV': ce.get('impliedVolatility', 0),
                 })
             
-            # Put (PE)
             if 'PE' in record:
                 pe = record['PE']
                 put_oi = pe.get('openInterest', 0)
                 total_put_oi += put_oi
                 puts.append({
-                    'Strike': strike,
-                    'Expiry': expiry,
+                    'Strike': strike, 'Expiry': expiry,
                     'Put LTP': pe.get('lastPrice', 0),
                     'Put Change': pe.get('change', 0),
                     'Put OI': put_oi,
@@ -188,8 +187,6 @@ def fetch_option_chain(symbol: str) -> tuple:
         
         call_df = pd.DataFrame(calls) if calls else pd.DataFrame()
         put_df = pd.DataFrame(puts) if puts else pd.DataFrame()
-        
-        # Calculate PCR (Put-Call Ratio)
         pcr = total_put_oi / total_call_oi if total_call_oi > 0 else 0
         
         return call_df, put_df, underlying, pcr
@@ -198,7 +195,7 @@ def fetch_option_chain(symbol: str) -> tuple:
         st.error("nsepython not installed. Run: pip install nsepython")
         return pd.DataFrame(), pd.DataFrame(), 0, 0
     except Exception as e:
-        st.error(f"Error fetching option chain: {e}")
+        st.error(f"Error: {e}")
         return pd.DataFrame(), pd.DataFrame(), 0, 0
 
 
@@ -207,20 +204,14 @@ def create_combined_chain(call_df: pd.DataFrame, put_df: pd.DataFrame) -> pd.Dat
     if call_df.empty and put_df.empty:
         return pd.DataFrame()
     
-    # Merge on Strike and Expiry
     if not call_df.empty and not put_df.empty:
         combined = pd.merge(
             call_df[['Strike', 'Expiry', 'Call OI', 'Call LTP', 'Call IV']],
             put_df[['Strike', 'Expiry', 'Put OI', 'Put LTP', 'Put IV']],
-            on=['Strike', 'Expiry'],
-            how='outer'
+            on=['Strike', 'Expiry'], how='outer'
         )
-        combined = combined.sort_values('Strike')
-        return combined
-    elif not call_df.empty:
-        return call_df
-    else:
-        return put_df
+        return combined.sort_values('Strike')
+    return call_df if not call_df.empty else put_df
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -234,37 +225,29 @@ with st.sidebar:
     
     st.markdown("### 📊 Symbol Selection")
     
-    # Get ticker from session state (persisted from Equity page)
     default_ticker = st.session_state.get("selected_ticker", "NIFTY")
     if default_ticker not in ALL_SYMBOLS:
         default_ticker = "NIFTY"
     
-    selected_symbol = st.selectbox(
-        "Select Symbol",
-        ALL_SYMBOLS,
-        index=ALL_SYMBOLS.index(default_ticker) if default_ticker in ALL_SYMBOLS else 0,
-        key="deriv_symbol_select"
-    )
+    selected_symbol = st.selectbox("Select Symbol", ALL_SYMBOLS,
+                                   index=ALL_SYMBOLS.index(default_ticker) if default_ticker in ALL_SYMBOLS else 0)
     
-    # Update session state
     st.session_state["selected_ticker"] = selected_symbol
-    
     is_index = selected_symbol in INDEX_SYMBOLS
     st.caption(f"Type: {'Index' if is_index else 'Stock'}")
     
     st.divider()
     
     st.markdown("### 💾 Session State")
-    st.caption(f"Ticker: **{st.session_state.get('selected_ticker', 'None')}**")
-    
+    st.caption(f"Ticker: **{st.session_state.get('selected_ticker')}**")
     if st.session_state.get("equity_data") is not None:
         st.success("✅ Equity data available")
+    if st.session_state.get("options_data") is not None:
+        st.success("✅ Options data loaded")
     
     st.divider()
-    
     st.markdown("### 📡 Data Source")
     st.markdown('<span class="source-badge">nsepython</span>', unsafe_allow_html=True)
-    st.caption(f"`option_chain('{selected_symbol}')`")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -272,7 +255,6 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("# 📊 Derivatives (Option Chain)")
 st.caption(f"Data Source: nsepython | Symbol: {selected_symbol}")
-
 st.markdown(f'<span class="source-badge">option_chain("{selected_symbol}")</span>', unsafe_allow_html=True)
 
 st.divider()
@@ -287,13 +269,10 @@ if st.button("🚀 Fetch Option Chain", use_container_width=True, type="primary"
         call_df, put_df, underlying, pcr = fetch_option_chain(selected_symbol)
         
         if not call_df.empty or not put_df.empty:
-            st.session_state["options_data"] = {
-                "call": call_df,
-                "put": put_df,
-                "underlying": underlying,
-                "pcr": pcr
-            }
+            st.session_state["options_data"] = {"call": call_df, "put": put_df, "underlying": underlying, "pcr": pcr}
             st.session_state["selected_ticker"] = selected_symbol
+            st.session_state["pcr_value"] = pcr
+            st.session_state["underlying_price"] = underlying
             st.success(f"✅ Fetched {len(call_df)} Calls + {len(put_df)} Puts")
         else:
             st.error("❌ No option chain data returned")
@@ -303,30 +282,22 @@ st.divider()
 # Display Data
 if st.session_state.get("options_data"):
     data = st.session_state["options_data"]
-    call_df = data["call"]
-    put_df = data["put"]
-    underlying = data["underlying"]
-    pcr = data["pcr"]
+    call_df, put_df = data["call"], data["put"]
+    underlying, pcr = data["underlying"], data["pcr"]
     
-    # ══════════════════════════════════════════════════════════════════════════
-    # PCR INDICATOR (Put-Call Ratio)
-    # ══════════════════════════════════════════════════════════════════════════
+    # PCR INDICATOR
     st.markdown("### 📊 Put-Call Ratio (PCR) Indicator")
     
     pcr_col1, pcr_col2, pcr_col3 = st.columns([1, 2, 1])
-    
     with pcr_col2:
         if pcr > 1.2:
-            sentiment = "BULLISH"
-            css_class = "pcr-bullish"
+            sentiment, css_class = "BULLISH", "pcr-bullish"
             explanation = "High PCR (>1.2) indicates more Put writing → Bullish sentiment"
         elif pcr < 0.8:
-            sentiment = "BEARISH"
-            css_class = "pcr-bearish"
+            sentiment, css_class = "BEARISH", "pcr-bearish"
             explanation = "Low PCR (<0.8) indicates more Call writing → Bearish sentiment"
         else:
-            sentiment = "NEUTRAL"
-            css_class = "pcr-neutral"
+            sentiment, css_class = "NEUTRAL", "pcr-neutral"
             explanation = "PCR between 0.8-1.2 indicates balanced market"
         
         st.markdown(f'<div class="{css_class}">PCR: {pcr:.2f} • {sentiment}</div>', unsafe_allow_html=True)
@@ -334,72 +305,38 @@ if st.session_state.get("options_data"):
     
     st.divider()
     
-    # ══════════════════════════════════════════════════════════════════════════
     # KPI METRICS
-    # ══════════════════════════════════════════════════════════════════════════
     st.markdown("### 📊 Market Overview")
-    
     m1, m2, m3, m4 = st.columns(4)
-    
     with m1:
         st.metric("UNDERLYING", f"₹{underlying:,.2f}")
-    
     with m2:
         st.metric("PCR", f"{pcr:.2f}")
-    
     with m3:
         total_call_oi = call_df['Call OI'].sum() if 'Call OI' in call_df.columns else 0
         st.metric("TOTAL CALL OI", f"{total_call_oi:,.0f}")
-    
     with m4:
         total_put_oi = put_df['Put OI'].sum() if 'Put OI' in put_df.columns else 0
         st.metric("TOTAL PUT OI", f"{total_put_oi:,.0f}")
     
     st.divider()
     
-    # ══════════════════════════════════════════════════════════════════════════
     # OPTION CHAIN TABLE
-    # ══════════════════════════════════════════════════════════════════════════
     st.markdown("### 📋 Option Chain Table")
-    st.caption("Strike | Call OI | Put OI | LTP")
-    
-    # Create combined table
     combined = create_combined_chain(call_df, put_df)
-    
     if not combined.empty:
-        # Format for display
-        display_df = combined.copy()
-        
-        # Format columns
-        for col in ['Call LTP', 'Put LTP']:
-            if col in display_df.columns:
-                display_df[col] = display_df[col].apply(lambda x: f"₹{x:,.2f}" if pd.notna(x) else "-")
-        
-        for col in ['Call OI', 'Put OI']:
-            if col in display_df.columns:
-                display_df[col] = display_df[col].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "-")
-        
-        for col in ['Call IV', 'Put IV']:
-            if col in display_df.columns:
-                display_df[col] = display_df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "-")
-        
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(combined, use_container_width=True, hide_index=True)
     
     st.divider()
     
-    # ══════════════════════════════════════════════════════════════════════════
-    # SEPARATE TABS
-    # ══════════════════════════════════════════════════════════════════════════
+    # TABS
     st.markdown("### 📊 Detailed View")
-    
     tab1, tab2 = st.tabs(["🟢 CALL (CE)", "🔴 PUT (PE)"])
-    
     with tab1:
         if not call_df.empty:
             st.dataframe(call_df, use_container_width=True, hide_index=True)
         else:
             st.info("No Call data")
-    
     with tab2:
         if not put_df.empty:
             st.dataframe(put_df, use_container_width=True, hide_index=True)
@@ -409,30 +346,12 @@ if st.session_state.get("options_data"):
     # Download
     st.divider()
     if not combined.empty:
-        st.download_button(
-            "📥 Download Option Chain CSV",
-            combined.to_csv(index=False),
-            f"{selected_symbol}_options.csv",
-            "text/csv",
-            use_container_width=True
-        )
+        st.download_button("📥 Download Option Chain CSV", combined.to_csv(index=False),
+                          f"{selected_symbol}_options.csv", "text/csv", use_container_width=True)
 
 else:
     st.info("👆 Click **Fetch Option Chain** to load data from nsepython")
-    
-    # Show example
-    st.markdown("### 📖 Example Usage")
-    st.code("""
-from nsepython import option_chain
-
-# Fetch NIFTY option chain
-data = option_chain("NIFTY")
-
-# Returns: records with CE (Call) and PE (Put) data
-# Including: Strike, OI, LTP, IV, Volume, etc.
-    """, language="python")
 
 # Footer
 st.divider()
 st.caption(f"📈 PRK Exchange Suite | Derivatives Page | {datetime.now().strftime('%H:%M:%S')}")
-st.caption(f"Data: nsepython (NSE India) | Symbol: {selected_symbol}")

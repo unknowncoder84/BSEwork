@@ -1,13 +1,25 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# STREAMLIT CLOUD TMP CACHE FIX - MUST BE AT VERY TOP
+# ══════════════════════════════════════════════════════════════════════════════
+import appdirs as ad
+ad.user_cache_dir = lambda *args: "/tmp"
+# ══════════════════════════════════════════════════════════════════════════════
+
 """
-PRK Exchange Suite - Professional Stock Analysis Platform
+PRK Exchange Suite - Main Application
 ═══════════════════════════════════════════════════════════════════════════════
+DEPLOYMENT: Streamlit Cloud Ready
+- Main_App.py at root
+- pages/1_Equity.py
+- pages/2_Derivatives.py
+
 DATA SOURCES:
 - Equity: yfinance (Yahoo Finance API)
 - Options: nsepython (NSE Official API)
 
-PAGES:
-- 1_Equity.py: Historical data, KPI tiles, Line charts
-- 2_Derivatives.py: Option chain, PCR indicator
+PERSISTENCE:
+- st.session_state initialized here
+- Shared across all pages
 ═══════════════════════════════════════════════════════════════════════════════
 """
 import streamlit as st
@@ -24,6 +36,28 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SESSION STATE INITIALIZATION (PERSISTENCE VAULT)
+# This ensures data persists when switching between pages
+# ══════════════════════════════════════════════════════════════════════════════
+if "selected_ticker" not in st.session_state:
+    st.session_state["selected_ticker"] = "TCS"
+
+if "equity_data" not in st.session_state:
+    st.session_state["equity_data"] = None
+
+if "options_data" not in st.session_state:
+    st.session_state["options_data"] = None
+
+if "last_fetch_time" not in st.session_state:
+    st.session_state["last_fetch_time"] = None
+
+if "underlying_price" not in st.session_state:
+    st.session_state["underlying_price"] = None
+
+if "pcr_value" not in st.session_state:
+    st.session_state["pcr_value"] = None
+
+# ══════════════════════════════════════════════════════════════════════════════
 # CUSTOM CSS
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
@@ -34,7 +68,6 @@ st.markdown("""
     font-family: 'Inter', sans-serif;
 }
 
-/* Metric Cards */
 [data-testid="stMetric"] {
     background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
     border-radius: 12px;
@@ -54,7 +87,6 @@ st.markdown("""
     font-weight: 700 !important;
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
 }
@@ -63,7 +95,6 @@ section[data-testid="stSidebar"] .stMarkdown {
     color: #e2e8f0;
 }
 
-/* Buttons */
 .stButton > button {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
@@ -71,7 +102,6 @@ section[data-testid="stSidebar"] .stMarkdown {
     border: none;
     border-radius: 8px;
     padding: 0.75rem 1.5rem;
-    transition: all 0.3s ease;
 }
 
 .stButton > button:hover {
@@ -79,13 +109,6 @@ section[data-testid="stSidebar"] .stMarkdown {
     box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
 }
 
-/* DataFrames */
-.stDataFrame {
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-/* Hero */
 .hero-title {
     font-size: 3rem;
     font-weight: 800;
@@ -100,7 +123,6 @@ section[data-testid="stSidebar"] .stMarkdown {
     font-size: 1.1rem;
 }
 
-/* Cards */
 .info-card {
     background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
     border-radius: 16px;
@@ -138,18 +160,24 @@ section[data-testid="stSidebar"] .stMarkdown {
     color: #4ade80;
     border: 1px solid rgba(34, 197, 94, 0.3);
 }
+
+.status-ok {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.status-pending {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
 </style>
 """, unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# INITIALIZE SESSION STATE
-# ══════════════════════════════════════════════════════════════════════════════
-if "selected_ticker" not in st.session_state:
-    st.session_state["selected_ticker"] = "TCS"
-if "equity_data" not in st.session_state:
-    st.session_state["equity_data"] = None
-if "options_data" not in st.session_state:
-    st.session_state["options_data"] = None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
@@ -174,13 +202,21 @@ with st.sidebar:
     
     st.divider()
     
-    st.markdown("### 💾 Session State")
+    st.markdown("### 💾 Persistence Vault")
     st.caption(f"Ticker: **{st.session_state.get('selected_ticker', 'None')}**")
     
+    # Status indicators
     if st.session_state.get("equity_data") is not None:
-        st.success("✅ Equity data loaded")
+        st.markdown('<div class="status-ok">✅ Equity Data Loaded</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="status-pending">⏳ Equity Data Pending</div>', unsafe_allow_html=True)
+    
+    st.write("")
+    
     if st.session_state.get("options_data") is not None:
-        st.success("✅ Options data loaded")
+        st.markdown('<div class="status-ok">✅ Options Data Loaded</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="status-pending">⏳ Options Data Pending</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN CONTENT
@@ -222,19 +258,37 @@ st.info("""
 4. **Data persists** across pages via `st.session_state`
 """)
 
-# Stats
-st.markdown("### 📊 Platform Stats")
+# Session State Status
+st.markdown("### 💾 Session State Status")
+
+s1, s2, s3 = st.columns(3)
+
+with s1:
+    ticker = st.session_state.get("selected_ticker", "None")
+    st.metric("Selected Ticker", ticker)
+
+with s2:
+    equity_status = "Loaded" if st.session_state.get("equity_data") is not None else "Empty"
+    st.metric("Equity Data", equity_status)
+
+with s3:
+    options_status = "Loaded" if st.session_state.get("options_data") is not None else "Empty"
+    st.metric("Options Data", options_status)
+
+# Platform Stats
+st.markdown("### 📊 Platform Info")
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.metric("Data Source", "yfinance", delta="Equity")
+    st.metric("Equity Source", "yfinance")
 with c2:
-    st.metric("Options API", "nsepython", delta="NSE")
+    st.metric("Options Source", "nsepython")
 with c3:
-    st.metric("Pages", "2", delta="Equity + Derivatives")
+    st.metric("Pages", "2")
 with c4:
-    st.metric("Persistence", "Active", delta="Session State")
+    st.metric("Deployment", "Cloud Ready")
 
 # Footer
 st.divider()
 st.caption(f"📈 PRK Exchange Suite | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 st.caption("Data: yfinance (Yahoo Finance) • nsepython (NSE India)")
+st.caption("Deployment: Streamlit Cloud with /tmp cache fix")

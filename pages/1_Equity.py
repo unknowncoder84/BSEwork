@@ -1,9 +1,15 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# STREAMLIT CLOUD TMP CACHE FIX - MUST BE AT VERY TOP
+# ══════════════════════════════════════════════════════════════════════════════
+import appdirs as ad
+ad.user_cache_dir = lambda *args: "/tmp"
+# ══════════════════════════════════════════════════════════════════════════════
+
 """
 PRK Exchange Suite - Equity Page
 ═══════════════════════════════════════════════════════════════════════════════
 DATA SOURCE: yfinance (Yahoo Finance API)
 - yf.download("TCS.NS", period="1mo")
-- Most accurate source for historical numbers
 
 FEATURES:
 - KPI Tiles: Today's Open, High, Low, Close
@@ -13,6 +19,7 @@ FEATURES:
 """
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 from datetime import datetime, timedelta
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -23,6 +30,14 @@ st.set_page_config(
     page_icon="📈",
     layout="wide"
 )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SESSION STATE INITIALIZATION (Ensure persistence)
+# ══════════════════════════════════════════════════════════════════════════════
+if "selected_ticker" not in st.session_state:
+    st.session_state["selected_ticker"] = "TCS"
+if "equity_data" not in st.session_state:
+    st.session_state["equity_data"] = None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CUSTOM CSS
@@ -45,17 +60,12 @@ st.markdown("""
     font-size: 0.85rem !important;
     font-weight: 500 !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.5px !important;
 }
 
 [data-testid="stMetricValue"] {
     color: #ffffff !important;
     font-size: 1.5rem !important;
     font-weight: 700 !important;
-}
-
-[data-testid="stMetricDelta"] > div {
-    font-size: 0.85rem !important;
 }
 
 section[data-testid="stSidebar"] {
@@ -69,14 +79,6 @@ section[data-testid="stSidebar"] {
     border: none;
     border-radius: 8px;
 }
-
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
-}
-
-.kpi-positive { color: #22c55e !important; }
-.kpi-negative { color: #ef4444 !important; }
 
 .source-badge {
     background: rgba(59, 130, 246, 0.15);
@@ -107,17 +109,9 @@ NSE_STOCKS = [
 # ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=300)
 def fetch_equity_data(ticker: str, period: str = "1mo") -> pd.DataFrame:
-    """
-    Fetch equity data using yfinance.
-    Example: yf.download("TCS.NS", period="1mo")
-    """
+    """Fetch equity data using yfinance."""
     try:
-        import yfinance as yf
-        
-        # Add .NS suffix for NSE stocks
         symbol = f"{ticker}.NS"
-        
-        # Download data
         df = yf.download(symbol, period=period, progress=False)
         
         if df.empty:
@@ -127,15 +121,11 @@ def fetch_equity_data(ticker: str, period: str = "1mo") -> pd.DataFrame:
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = [col[0] for col in df.columns]
         
-        # Reset index to make Date a column
         df = df.reset_index()
-        
-        # Ensure proper column names
         df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-        
         return df
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
+        st.error(f"Error: {e}")
         return pd.DataFrame()
 
 
@@ -146,7 +136,6 @@ def get_latest_quote(df: pd.DataFrame) -> dict:
     
     latest = df.iloc[-1]
     prev_close = df.iloc[-2]['Close'] if len(df) > 1 else latest['Open']
-    
     change = latest['Close'] - prev_close
     change_pct = (change / prev_close * 100) if prev_close > 0 else 0
     
@@ -172,16 +161,10 @@ with st.sidebar:
     
     st.markdown("### 📊 Stock Selection")
     
-    # Get ticker from session state
     default_ticker = st.session_state.get("selected_ticker", "TCS")
     default_idx = NSE_STOCKS.index(default_ticker) if default_ticker in NSE_STOCKS else 0
     
-    selected_ticker = st.selectbox(
-        "Select Stock",
-        NSE_STOCKS,
-        index=default_idx,
-        key="equity_ticker_select"
-    )
+    selected_ticker = st.selectbox("Select Stock", NSE_STOCKS, index=default_idx)
     
     # Update session state (persistence)
     st.session_state["selected_ticker"] = selected_ticker
@@ -189,24 +172,18 @@ with st.sidebar:
     st.divider()
     
     st.markdown("### 📅 Time Period")
-    period = st.selectbox(
-        "Select Period",
-        ["1mo", "3mo", "6mo", "1y", "2y", "5y"],
-        index=0,
-        key="equity_period"
-    )
+    period = st.selectbox("Select Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=0)
     
     st.divider()
     
     st.markdown("### 💾 Session State")
-    st.caption(f"Ticker: **{st.session_state.get('selected_ticker', 'None')}**")
-    st.caption("Persists across pages ✓")
+    st.caption(f"Ticker: **{st.session_state.get('selected_ticker')}**")
+    if st.session_state.get("equity_data") is not None:
+        st.success("✅ Equity data loaded")
     
     st.divider()
-    
     st.markdown("### 📡 Data Source")
     st.markdown('<span class="source-badge">yfinance</span>', unsafe_allow_html=True)
-    st.caption(f"`yf.download('{selected_ticker}.NS')`")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -214,7 +191,6 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("# 📈 Equity Analysis")
 st.caption(f"Data Source: yfinance | Symbol: {selected_ticker}.NS | Period: {period}")
-
 st.markdown(f'<span class="source-badge">yf.download("{selected_ticker}.NS", period="{period}")</span>', unsafe_allow_html=True)
 
 st.divider()
@@ -227,9 +203,10 @@ if st.button("🚀 Fetch Equity Data", use_container_width=True, type="primary")
         if not df.empty:
             st.session_state["equity_data"] = df
             st.session_state["selected_ticker"] = selected_ticker
+            st.session_state["last_fetch_time"] = datetime.now().strftime('%H:%M:%S')
             st.success(f"✅ Fetched {len(df)} rows for {selected_ticker}")
         else:
-            st.error("❌ No data returned. Check ticker symbol.")
+            st.error("❌ No data returned")
 
 st.divider()
 
@@ -238,120 +215,59 @@ if st.session_state.get("equity_data") is not None and not st.session_state["equ
     df = st.session_state["equity_data"]
     quote = get_latest_quote(df)
     
-    # ══════════════════════════════════════════════════════════════════════════
-    # KPI TILES (Metric Cards)
-    # ══════════════════════════════════════════════════════════════════════════
+    # KPI TILES
     st.markdown("### 📊 Today's KPIs")
     
     k1, k2, k3, k4 = st.columns(4)
     
     with k1:
-        st.metric(
-            label="OPEN",
-            value=f"₹{quote['open']:,.2f}",
-        )
-    
+        st.metric(label="OPEN", value=f"₹{quote['open']:,.2f}")
     with k2:
-        st.metric(
-            label="HIGH",
-            value=f"₹{quote['high']:,.2f}",
-            delta=f"Day High"
-        )
-    
+        st.metric(label="HIGH", value=f"₹{quote['high']:,.2f}", delta="Day High")
     with k3:
-        st.metric(
-            label="LOW",
-            value=f"₹{quote['low']:,.2f}",
-            delta=f"Day Low"
-        )
-    
+        st.metric(label="LOW", value=f"₹{quote['low']:,.2f}", delta="Day Low")
     with k4:
         delta_color = "normal" if quote['change'] >= 0 else "inverse"
-        st.metric(
-            label="CLOSE",
-            value=f"₹{quote['close']:,.2f}",
-            delta=f"{quote['change']:+.2f} ({quote['change_pct']:+.2f}%)",
-            delta_color=delta_color
-        )
+        st.metric(label="CLOSE", value=f"₹{quote['close']:,.2f}",
+                  delta=f"{quote['change']:+.2f} ({quote['change_pct']:+.2f}%)", delta_color=delta_color)
     
     # Additional Metrics
     m1, m2, m3, m4 = st.columns(4)
-    
     with m1:
         st.metric("VOLUME", f"{quote['volume']:,.0f}")
-    
     with m2:
-        avg_price = (quote['high'] + quote['low']) / 2
-        st.metric("AVG PRICE", f"₹{avg_price:,.2f}")
-    
+        st.metric("AVG PRICE", f"₹{(quote['high'] + quote['low']) / 2:,.2f}")
     with m3:
-        range_val = quote['high'] - quote['low']
-        st.metric("DAY RANGE", f"₹{range_val:,.2f}")
-    
+        st.metric("DAY RANGE", f"₹{quote['high'] - quote['low']:,.2f}")
     with m4:
         st.metric("RECORDS", f"{len(df)} days")
     
     st.divider()
     
-    # ══════════════════════════════════════════════════════════════════════════
     # LINE CHART
-    # ══════════════════════════════════════════════════════════════════════════
     st.markdown("### 📈 Price Chart")
-    
-    # Prepare chart data
-    chart_df = df[['Date', 'Close']].copy()
-    chart_df = chart_df.set_index('Date')
-    
+    chart_df = df[['Date', 'Close']].copy().set_index('Date')
     st.line_chart(chart_df, use_container_width=True, height=400)
     
     # Volume Chart
     st.markdown("### 📊 Volume Chart")
-    vol_df = df[['Date', 'Volume']].copy()
-    vol_df = vol_df.set_index('Date')
+    vol_df = df[['Date', 'Volume']].copy().set_index('Date')
     st.bar_chart(vol_df, use_container_width=True, height=200)
     
     st.divider()
     
-    # ══════════════════════════════════════════════════════════════════════════
     # DATA TABLE
-    # ══════════════════════════════════════════════════════════════════════════
     st.markdown("### 📋 Historical Data")
-    
-    # Format for display
     display_df = df.copy()
     display_df['Date'] = pd.to_datetime(display_df['Date']).dt.strftime('%Y-%m-%d')
-    for col in ['Open', 'High', 'Low', 'Close', 'Adj Close']:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"₹{x:,.2f}")
-    if 'Volume' in display_df.columns:
-        display_df['Volume'] = display_df['Volume'].apply(lambda x: f"{x:,.0f}")
-    
     st.dataframe(display_df, use_container_width=True, hide_index=True)
     
     # Download
-    st.download_button(
-        "📥 Download CSV",
-        df.to_csv(index=False),
-        f"{selected_ticker}_equity.csv",
-        "text/csv",
-        use_container_width=True
-    )
+    st.download_button("📥 Download CSV", df.to_csv(index=False), f"{selected_ticker}_equity.csv", "text/csv", use_container_width=True)
 
 else:
     st.info("👆 Click **Fetch Equity Data** to load historical prices from yfinance")
-    
-    # Show example
-    st.markdown("### 📖 Example Usage")
-    st.code("""
-import yfinance as yf
-
-# Fetch TCS data for 1 month
-df = yf.download("TCS.NS", period="1mo")
-
-# Returns: Date, Open, High, Low, Close, Adj Close, Volume
-    """, language="python")
 
 # Footer
 st.divider()
 st.caption(f"📈 PRK Exchange Suite | Equity Page | {datetime.now().strftime('%H:%M:%S')}")
-st.caption(f"Data: yfinance (Yahoo Finance) | Symbol: {selected_ticker}.NS")
