@@ -996,7 +996,7 @@ if st.session_state.get("vault_equity") is not None and not st.session_state["va
             st.metric("Total Vol", f"{equity_df['Volume'].sum():,.0f}")
     
     with st.expander("📊 View Equity Data (LOCKED)", expanded=False):
-        st.dataframe(equity_df, use_container_width=True, hide_index=True)
+        st.dataframe(equity_df, use_container_width=True, hide_index=Tr\'ue)
     
     excel = create_single_excel(equity_df, selected_stocks, "Equity", "1F4E79")
     st.download_button("📥 Download Equity.xlsx", excel, "Equity.xlsx",

@@ -16,6 +16,17 @@
   },
   "history": [
     {
+      "timestamp": "2026-01-09T18:55:45.176989",
+      "stocks": [
+        "TCS"
+      ],
+      "stock_count": 1,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "Masterbook.xlsx",
+      "status": "success"
+    },
+    {
       "timestamp": "2026-01-09T18:37:59.220365",
       "stocks": [
         "TCS"
