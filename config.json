@@ -1,0 +1,125 @@
+{
+  "preferences": {
+    "theme": "dark",
+    "default_stocks": [
+      "RELIANCE",
+      "TCS",
+      "HDFCBANK",
+      "INFY",
+      "ICICIBANK"
+    ],
+    "auto_save": true
+  },
+  "notepad": {
+    "content": "",
+    "last_updated": null
+  },
+  "history": [
+    {
+      "timestamp": "2026-01-09T18:37:59.220365",
+      "stocks": [
+        "TCS"
+      ],
+      "stock_count": 1,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "Call_Report.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-09T18:34:15.216029",
+      "stocks": [
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 2,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "NSE_Masterbook.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-09T18:23:58.251972",
+      "stocks": [
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 2,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "NSE_Masterbook.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-09T15:20:32.271089",
+      "stocks": [
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 2,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "NSE_Masterbook.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-09T14:47:41.990097",
+      "stocks": [
+        "TCS",
+        "HDFCBANK"
+      ],
+      "stock_count": 2,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "NSE_Masterbook.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-09T14:08:00.846265",
+      "stocks": [
+        "TCS"
+      ],
+      "stock_count": 1,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "NSE_Masterbook.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-09T12:46:13.946457",
+      "stocks": [
+        "TCS"
+      ],
+      "stock_count": 1,
+      "from_date": "10-Dec-2025",
+      "to_date": "09-Jan-2026",
+      "filename": "NSE_Masterbook.xlsx",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-01-08T10:01:58.252921",
+      "stocks": [
+        "TCS"
+      ],
+      "stock_count": 1,
+      "from_date": "09-Dec-2025",
+      "to_date": "08-Jan-2026",
+      "filename": "Equity_Analysis.xlsx",
+      "status": "success"
+    }
+  ],
+  "calendar_events": [],
+  "custom_tickers": [],
+  "derivative_params": {
+    "year": 2026,
+    "expiry_month": "JAN",
+    "expiry_months": [
+      "JAN"
+    ]
+  },
+  "last_stock": "RELIANCE",
+  "last_strike_price": 3000.0,
+  "selected_stocks": [
+    "TCS"
+  ]
+}
