@@ -6,12 +6,11 @@ ad.user_cache_dir = lambda *args: "/tmp"
 # ══════════════════════════════════════════════════════════════════════════════
 
 """
-Quantum Market Suite - Derivatives Hub (Option Chain)
+Quantum Market Suite - Equity Data Page
 ═══════════════════════════════════════════════════════════════════════════════
-DATA: nsepython nse_optionchain()
-STEALTH: TLS Fingerprint + Browser Headers
+DATA: nsepython nse_quote() + yfinance historical
 VALIDATION: Google Finance (>2% mismatch = auto-restart)
-OUTPUT: Clean rows and columns only (Call/Put)
+OUTPUT: Clean rows and columns only
 ═══════════════════════════════════════════════════════════════════════════════
 """
 import streamlit as st
@@ -24,19 +23,17 @@ from datetime import datetime
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Derivatives Hub | Quantum", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Equity Data | Quantum", page_icon="📈", layout="wide")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION STATE
 # ══════════════════════════════════════════════════════════════════════════════
 if "selected_ticker" not in st.session_state:
-    st.session_state["selected_ticker"] = "NIFTY"
-if "options_data" not in st.session_state:
-    st.session_state["options_data"] = None
-if "call_options" not in st.session_state:
-    st.session_state["call_options"] = None
-if "put_options" not in st.session_state:
-    st.session_state["put_options"] = None
+    st.session_state["selected_ticker"] = "TCS"
+if "equity_data" not in st.session_state:
+    st.session_state["equity_data"] = None
+if "equity_hist" not in st.session_state:
+    st.session_state["equity_hist"] = None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TERMINAL CSS
@@ -51,31 +48,25 @@ st.markdown("""
 section[data-testid="stSidebar"] { background: #0d1117; border-right: 1px solid #30363d; }
 section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h3 { color: #00ff41 !important; }
 .stButton > button { background: linear-gradient(135deg, #238636, #2ea043); color: #fff; font-weight: 600; border: none; }
-.pcr-bullish { background: #00ff41; color: #0d1117; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-align: center; }
-.pcr-bearish { background: #ff4757; color: #fff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-align: center; }
-.pcr-neutral { background: #ffc107; color: #0d1117; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SYMBOLS
+# STOCK LIST
 # ══════════════════════════════════════════════════════════════════════════════
-INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]
-STOCK_SYMBOLS = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL",
-                 "KOTAKBANK", "ITC", "LT", "AXISBANK", "MARUTI", "BAJFINANCE", "TITAN",
-                 "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"]
-ALL_SYMBOLS = INDEX_SYMBOLS + STOCK_SYMBOLS
+NSE_STOCKS = [
+    "TCS", "RELIANCE", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "SBIN",
+    "BHARTIARTL", "KOTAKBANK", "ITC", "LT", "AXISBANK", "MARUTI", "BAJFINANCE",
+    "TITAN", "SUNPHARMA", "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"
+]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GOOGLE FINANCE VALIDATION
+# GOOGLE FINANCE VALIDATION (TRUTH REFERENCE)
 # ══════════════════════════════════════════════════════════════════════════════
 def get_google_price(ticker: str) -> float:
     """Fetch Google Finance price as truth reference."""
     try:
-        if ticker in INDEX_SYMBOLS:
-            url = f"https://www.google.com/finance/quote/{ticker}:INDEXNSE"
-        else:
-            url = f"https://www.google.com/finance/quote/{ticker}:NSE"
+        url = f"https://www.google.com/finance/quote/{ticker}:NSE"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept-Encoding": "gzip, deflate, br",
@@ -99,67 +90,50 @@ def validate_price(nse_price: float, ticker: str) -> tuple:
     return True, 0, 0
 
 # ══════════════════════════════════════════════════════════════════════════════
-# NSE OPTION CHAIN FETCHER
+# NSE DATA FETCHERS
 # ══════════════════════════════════════════════════════════════════════════════
-@st.cache_data(ttl=60)
-def fetch_option_chain(symbol: str) -> tuple:
-    """Fetch option chain using nsepython nse_optionchain()."""
+@st.cache_data(ttl=120)
+def fetch_live_quote(ticker: str) -> dict:
+    """Fetch live quote using nsepython nse_quote()."""
     try:
-        from nsepython import nse_optionchain
-        data = nse_optionchain(symbol)
-        if not data or 'records' not in data:
-            return pd.DataFrame(), pd.DataFrame(), 0, 0
-        
-        records = data['records']
-        underlying = records.get('underlyingValue', 0)
-        data_list = records.get('data', [])
-        
-        calls, puts = [], []
-        total_call_oi, total_put_oi = 0, 0
-        
-        for rec in data_list:
-            strike = rec.get('strikePrice', 0)
-            expiry = rec.get('expiryDate', '')
-            
-            if 'CE' in rec:
-                ce = rec['CE']
-                oi = ce.get('openInterest', 0)
-                total_call_oi += oi
-                calls.append({
-                    'Strike': strike,
-                    'Expiry': expiry,
-                    'LTP': ce.get('lastPrice', 0),
-                    'Change': ce.get('change', 0),
-                    'OI': oi,
-                    'OI_Chg': ce.get('changeinOpenInterest', 0),
-                    'Volume': ce.get('totalTradedVolume', 0),
-                    'IV': ce.get('impliedVolatility', 0),
-                })
-            
-            if 'PE' in rec:
-                pe = rec['PE']
-                oi = pe.get('openInterest', 0)
-                total_put_oi += oi
-                puts.append({
-                    'Strike': strike,
-                    'Expiry': expiry,
-                    'LTP': pe.get('lastPrice', 0),
-                    'Change': pe.get('change', 0),
-                    'OI': oi,
-                    'OI_Chg': pe.get('changeinOpenInterest', 0),
-                    'Volume': pe.get('totalTradedVolume', 0),
-                    'IV': pe.get('impliedVolatility', 0),
-                })
-        
-        call_df = pd.DataFrame(calls) if calls else pd.DataFrame()
-        put_df = pd.DataFrame(puts) if puts else pd.DataFrame()
-        pcr = total_put_oi / total_call_oi if total_call_oi > 0 else 0
-        
-        return call_df, put_df, underlying, pcr
-    
+        from nsepython import nse_quote
+        data = nse_quote(ticker)
+        if data and 'priceInfo' in data:
+            pi = data['priceInfo']
+            return {
+                "symbol": ticker,
+                "ltp": pi.get('lastPrice', 0),
+                "open": pi.get('open', 0),
+                "high": pi.get('intraDayHighLow', {}).get('max', 0),
+                "low": pi.get('intraDayHighLow', {}).get('min', 0),
+                "close": pi.get('close', 0),
+                "prev_close": pi.get('previousClose', 0),
+                "change": pi.get('change', 0),
+                "pct_change": pi.get('pChange', 0),
+                "volume": data.get('securityWiseDP', {}).get('quantityTraded', 0),
+            }
     except Exception as e:
-        st.error(f"nse_optionchain error: {e}")
-        return pd.DataFrame(), pd.DataFrame(), 0, 0
+        st.error(f"nse_quote error: {e}")
+    return {}
+
+
+@st.cache_data(ttl=300)
+def fetch_historical(ticker: str, period: str = "1mo") -> pd.DataFrame:
+    """Fetch historical data using yfinance."""
+    try:
+        import yfinance as yf
+        df = yf.download(f"{ticker}.NS", period=period, progress=False)
+        if df.empty:
+            return pd.DataFrame()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[0] for c in df.columns]
+        df = df.reset_index()
+        df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+        df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+        return df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
+    except Exception as e:
+        st.error(f"yfinance error: {e}")
+    return pd.DataFrame()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MASTER EXCEL GENERATOR (3 TABS)
@@ -173,7 +147,7 @@ def create_master_excel() -> bytes:
         if hist is not None and not hist.empty:
             hist.to_excel(writer, sheet_name='EQUITY_HIST', index=False)
         else:
-            pd.DataFrame({"Info": ["No equity data - fetch from Equity page"]}).to_excel(writer, sheet_name='EQUITY_HIST', index=False)
+            pd.DataFrame({"Info": ["No equity data"]}).to_excel(writer, sheet_name='EQUITY_HIST', index=False)
         
         # Tab 2: CALL_OPTIONS
         calls = st.session_state.get("call_options")
@@ -195,117 +169,90 @@ def create_master_excel() -> bytes:
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("# 📊 Derivatives Hub")
+    st.markdown("# 📈 Equity Data")
     st.divider()
-    st.markdown("### 📊 Symbol Selection")
-    default_ticker = st.session_state.get("selected_ticker", "NIFTY")
-    if default_ticker not in ALL_SYMBOLS:
-        default_ticker = "NIFTY"
-    symbol = st.selectbox("Select Symbol", ALL_SYMBOLS, index=ALL_SYMBOLS.index(default_ticker))
-    st.session_state["selected_ticker"] = symbol
-    st.caption(f"Type: {'Index' if symbol in INDEX_SYMBOLS else 'Stock'}")
+    st.markdown("### 📊 Stock Selection")
+    default_idx = NSE_STOCKS.index(st.session_state["selected_ticker"]) if st.session_state["selected_ticker"] in NSE_STOCKS else 0
+    ticker = st.selectbox("Select Stock", NSE_STOCKS, index=default_idx)
+    st.session_state["selected_ticker"] = ticker
     st.divider()
-    st.markdown("### 💾 Persistence Vault")
-    st.caption(f"Ticker: **{symbol}**")
-    if st.session_state.get("equity_data"):
-        st.success("✅ Equity available")
-    if st.session_state.get("options_data"):
-        st.success("✅ Options loaded")
+    st.markdown("### 📅 Period")
+    period = st.selectbox("Historical Period", ["1mo", "3mo", "6mo", "1y"], index=0)
     st.divider()
     st.markdown("### 📡 Source")
-    st.code("nse_optionchain()")
+    st.code("nse_quote() + yfinance")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN CONTENT
 # ══════════════════════════════════════════════════════════════════════════════
-st.markdown("# 📊 Derivatives Hub (Option Chain)")
-st.caption(f"Symbol: {symbol} | Source: nsepython nse_optionchain()")
+st.markdown("# 📈 Equity Data")
+st.caption(f"Symbol: {ticker} | Source: nsepython + yfinance")
 st.divider()
 
-# Auto-load notice
-if st.session_state.get("equity_data"):
-    st.success(f"✅ Ticker '{st.session_state['selected_ticker']}' loaded from Equity page via Persistence Vault")
-
 # Fetch Button
-if st.button("🚀 FETCH OPTION CHAIN", use_container_width=True, type="primary"):
-    with st.spinner(f"Fetching {symbol} option chain..."):
-        call_df, put_df, underlying, pcr = fetch_option_chain(symbol)
-        
-        if not call_df.empty or not put_df.empty:
+if st.button("🚀 FETCH EQUITY DATA", use_container_width=True, type="primary"):
+    with st.spinner(f"Fetching {ticker}..."):
+        # Live Quote
+        quote = fetch_live_quote(ticker)
+        if quote:
             # Validate against Google
-            is_valid, google_price, diff = validate_price(underlying, symbol)
+            ltp = quote.get('ltp', 0)
+            is_valid, google_price, diff = validate_price(ltp, ticker)
             
-            if not is_valid and google_price > 0:
-                st.warning(f"⚠️ Price mismatch! NSE: ₹{underlying:.2f} vs Google: ₹{google_price:.2f} ({diff*100:.1f}%)")
+            if not is_valid:
+                st.warning(f"⚠️ Price mismatch! NSE: ₹{ltp:.2f} vs Google: ₹{google_price:.2f} ({diff*100:.1f}%)")
                 st.cache_data.clear()
-                call_df, put_df, underlying, pcr = fetch_option_chain(symbol)
+                quote = fetch_live_quote(ticker)
                 st.info("🔄 Session restarted due to >2% mismatch")
             
-            st.session_state["options_data"] = {"underlying": underlying, "pcr": pcr}
-            st.session_state["call_options"] = call_df
-            st.session_state["put_options"] = put_df
+            st.session_state["equity_data"] = quote
             
-            st.success(f"✅ Loaded {len(call_df)} Calls + {len(put_df)} Puts | Underlying: ₹{underlying:,.2f}")
+            # Historical
+            hist = fetch_historical(ticker, period)
+            st.session_state["equity_hist"] = hist
+            
+            st.success(f"✅ Loaded {ticker} | LTP: ₹{quote.get('ltp', 0):,.2f}")
         else:
-            st.error("❌ No option chain data")
+            st.error("❌ Failed to fetch data")
 
 st.divider()
 
 # Display Data
-if st.session_state.get("options_data"):
-    data = st.session_state["options_data"]
-    call_df = st.session_state.get("call_options", pd.DataFrame())
-    put_df = st.session_state.get("put_options", pd.DataFrame())
-    underlying = data.get("underlying", 0)
-    pcr = data.get("pcr", 0)
+if st.session_state.get("equity_data"):
+    q = st.session_state["equity_data"]
     
-    # PCR Indicator
-    st.markdown("### 📊 Put-Call Ratio (PCR)")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if pcr > 1.2:
-            st.markdown(f'<div class="pcr-bullish">PCR: {pcr:.2f} • BULLISH</div>', unsafe_allow_html=True)
-            st.caption("High PCR (>1.2) = More Put writing → Bullish")
-        elif pcr < 0.8:
-            st.markdown(f'<div class="pcr-bearish">PCR: {pcr:.2f} • BEARISH</div>', unsafe_allow_html=True)
-            st.caption("Low PCR (<0.8) = More Call writing → Bearish")
-        else:
-            st.markdown(f'<div class="pcr-neutral">PCR: {pcr:.2f} • NEUTRAL</div>', unsafe_allow_html=True)
-            st.caption("PCR 0.8-1.2 = Balanced market")
+    st.markdown("### 📊 Live Quote (Clean Data)")
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.metric("LTP", f"₹{q.get('ltp', 0):,.2f}", f"{q.get('change', 0):+.2f} ({q.get('pct_change', 0):+.2f}%)")
+    with k2:
+        st.metric("VOLUME", f"{q.get('volume', 0):,}")
+    with k3:
+        st.metric("HIGH", f"₹{q.get('high', 0):,.2f}")
+    with k4:
+        st.metric("LOW", f"₹{q.get('low', 0):,.2f}")
     
-    st.divider()
-    
-    # KPI Metrics
-    st.markdown("### 📊 KPI Metrics")
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.metric("UNDERLYING", f"₹{underlying:,.2f}")
+        st.metric("OPEN", f"₹{q.get('open', 0):,.2f}")
     with m2:
-        st.metric("PCR", f"{pcr:.2f}")
+        st.metric("PREV CLOSE", f"₹{q.get('prev_close', 0):,.2f}")
     with m3:
-        total_call_oi = call_df['OI'].sum() if 'OI' in call_df.columns else 0
-        st.metric("CALL OI", f"{total_call_oi:,}")
+        st.metric("CHANGE", f"₹{q.get('change', 0):+,.2f}")
     with m4:
-        total_put_oi = put_df['OI'].sum() if 'OI' in put_df.columns else 0
-        st.metric("PUT OI", f"{total_put_oi:,}")
+        st.metric("% CHANGE", f"{q.get('pct_change', 0):+.2f}%")
     
     st.divider()
     
-    # Option Chain Tables (Clean Rows & Columns)
-    st.markdown("### 📋 Option Chain (Clean Data)")
-    tab1, tab2 = st.tabs(["🟢 CALL OPTIONS", "🔴 PUT OPTIONS"])
-    
-    with tab1:
-        if not call_df.empty:
-            st.dataframe(call_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No Call data")
-    
-    with tab2:
-        if not put_df.empty:
-            st.dataframe(put_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No Put data")
+    # Historical Table
+    if st.session_state.get("equity_hist") is not None and not st.session_state["equity_hist"].empty:
+        st.markdown("### 📋 Historical Data (Clean Rows & Columns)")
+        st.dataframe(st.session_state["equity_hist"], use_container_width=True, hide_index=True)
+        
+        st.markdown("### 📈 Price Chart")
+        chart_df = st.session_state["equity_hist"].copy()
+        chart_df['Date'] = pd.to_datetime(chart_df['Date'])
+        st.line_chart(chart_df.set_index('Date')['Close'], use_container_width=True, height=300)
     
     st.divider()
     
@@ -315,12 +262,12 @@ if st.session_state.get("options_data"):
     st.download_button(
         "📥 DOWNLOAD MASTER EXCEL (3 TABS)",
         excel_data,
-        f"{symbol}_Master_Data.xlsx",
+        f"{ticker}_Master_Data.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
 else:
-    st.info("👆 Click **FETCH OPTION CHAIN** to load")
+    st.info("👆 Click **FETCH EQUITY DATA** to load")
 
 st.divider()
-st.caption(f"📊 Derivatives Hub | {datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"📈 Equity Data | {datetime.now().strftime('%H:%M:%S')}")
