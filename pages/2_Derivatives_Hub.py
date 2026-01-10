@@ -1,17 +1,20 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# STREAMLIT CLOUD PERMISSION FIX - MUST BE AT VERY TOP
+# STREAMLIT CLOUD TMP CACHE FIX - MUST BE AT VERY TOP
 # ══════════════════════════════════════════════════════════════════════════════
 import appdirs as ad
 ad.user_cache_dir = lambda *args: "/tmp"
 # ══════════════════════════════════════════════════════════════════════════════
 
 """
-Quantum Market Suite - Derivatives Hub (Option Chain)
+PRK Exchange Suite - Derivatives Page
 ═══════════════════════════════════════════════════════════════════════════════
-DATA: nsepython nse_optionchain()
-STEALTH: TLS Fingerprint + Browser Headers
-VALIDATION: Google Finance (>2% mismatch = auto-restart)
-OUTPUT: Clean rows and columns only (Call/Put)
+DATA SOURCE: nsepython (NSE Official API)
+- option_chain("NIFTY") for live option chain data
+
+FEATURES:
+- Option Chain Table: Strike, Call OI, Put OI, LTP
+- Put-Call Ratio (PCR) Indicator
+- Persistence: selected_ticker from st.session_state
 ═══════════════════════════════════════════════════════════════════════════════
 """
 import streamlit as st
@@ -24,136 +27,107 @@ from datetime import datetime
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Derivatives Hub | Quantum", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="Derivatives | PRK Exchange Suite",
+    page_icon="📊",
+    layout="wide"
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SESSION STATE
+# SESSION STATE INITIALIZATION (Ensure persistence)
 # ══════════════════════════════════════════════════════════════════════════════
 if "selected_ticker" not in st.session_state:
     st.session_state["selected_ticker"] = "NIFTY"
 if "options_data" not in st.session_state:
     st.session_state["options_data"] = None
+if "pcr_value" not in st.session_state:
+    st.session_state["pcr_value"] = None
 if "call_options" not in st.session_state:
     st.session_state["call_options"] = None
 if "put_options" not in st.session_state:
     st.session_state["put_options"] = None
+if "equity_hist" not in st.session_state:
+    st.session_state["equity_hist"] = None
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TERMINAL THEME CSS (Dark Mode with Green/Red Highlights)
+# CUSTOM CSS
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-.stApp {
-    background: linear-gradient(135deg, #0a0f0d 0%, #0d1117 50%, #0a0f0d 100%);
-    font-family: 'Inter', sans-serif;
-}
+.stApp { font-family: 'Inter', sans-serif; }
 
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
-    border-radius: 8px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+    border-radius: 12px;
     padding: 1rem;
-    border: 1px solid #30363d;
-    box-shadow: 0 0 10px rgba(0, 255, 65, 0.1);
+    border: 1px solid rgba(255,255,255,0.1);
 }
+
 [data-testid="stMetricLabel"] {
-    color: #00ff41 !important;
-    font-size: 0.75rem !important;
-    font-weight: 600 !important;
+    color: #94a3b8 !important;
+    font-size: 0.85rem !important;
     text-transform: uppercase !important;
-    font-family: 'JetBrains Mono', monospace !important;
 }
+
 [data-testid="stMetricValue"] {
-    color: #e6edf3 !important;
-    font-size: 1.4rem !important;
+    color: #ffffff !important;
+    font-size: 1.5rem !important;
     font-weight: 700 !important;
-    font-family: 'JetBrains Mono', monospace !important;
 }
 
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
-    border-right: 1px solid #30363d;
-}
-section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 {
-    color: #00ff41 !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
 }
 
 .stButton > button {
-    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
-    color: #ffffff;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
     font-weight: 600;
-    border: 1px solid #238636;
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    text-transform: uppercase;
-}
-.stButton > button:hover {
-    background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
-    box-shadow: 0 0 20px rgba(46, 160, 67, 0.4);
+    border: none;
+    border-radius: 8px;
 }
 
 .source-badge {
-    background: rgba(0, 255, 65, 0.15);
-    color: #00ff41;
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
     padding: 6px 14px;
-    border-radius: 4px;
-    font-size: 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
     font-weight: 600;
-    border: 1px solid rgba(0, 255, 65, 0.3);
+    border: 1px solid rgba(34, 197, 94, 0.3);
     display: inline-block;
-    font-family: 'JetBrains Mono', monospace;
 }
 
 .pcr-bullish {
-    background: linear-gradient(135deg, #00ff41 0%, #00d4aa 100%);
-    color: #0d1117;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
     padding: 12px 24px;
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 1.2rem;
     font-weight: 700;
     text-align: center;
-    font-family: 'JetBrains Mono', monospace;
 }
+
 .pcr-bearish {
-    background: linear-gradient(135deg, #ff4757 0%, #ff6b7a 100%);
-    color: #ffffff;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
     padding: 12px 24px;
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 1.2rem;
     font-weight: 700;
     text-align: center;
-    font-family: 'JetBrains Mono', monospace;
 }
+
 .pcr-neutral {
-    background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
-    color: #0d1117;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
     padding: 12px 24px;
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 1.2rem;
     font-weight: 700;
     text-align: center;
-    font-family: 'JetBrains Mono', monospace;
-}
-
-.validation-ok {
-    background: rgba(0, 255, 65, 0.1);
-    color: #00ff41;
-    padding: 8px 16px;
-    border-radius: 4px;
-    border: 1px solid rgba(0, 255, 65, 0.3);
-    font-family: 'JetBrains Mono', monospace;
-}
-
-.session-active {
-    background: rgba(0, 255, 65, 0.1);
-    color: #00ff41;
-    padding: 6px 12px;
-    border-radius: 4px;
-    border: 1px solid rgba(0, 255, 65, 0.3);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -164,7 +138,7 @@ section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, sectio
 INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]
 STOCK_SYMBOLS = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL",
                  "KOTAKBANK", "ITC", "LT", "AXISBANK", "MARUTI", "BAJFINANCE", "TITAN",
-                 "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"]
+                 "SUNPHARMA", "TATAMOTORS", "TATASTEEL", "WIPRO", "HCLTECH", "TECHM"]
 ALL_SYMBOLS = INDEX_SYMBOLS + STOCK_SYMBOLS
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -191,24 +165,54 @@ def get_google_price(ticker: str) -> float:
     return 0.0
 
 
-def validate_price(nse_price: float, ticker: str) -> tuple:
-    """Validate NSE price vs Google. >2% = mismatch."""
+def validate_price(price: float, ticker: str) -> tuple:
+    """Validate price vs Google. >2% = mismatch."""
     google = get_google_price(ticker)
     if google > 0:
-        diff = abs(nse_price - google) / google
+        diff = abs(price - google) / google
         return diff <= 0.02, google, diff
     return True, 0, 0
 
+
 # ══════════════════════════════════════════════════════════════════════════════
-# NSE OPTION CHAIN FETCHER
+# 3-TAB MASTER EXCEL GENERATOR
+# ══════════════════════════════════════════════════════════════════════════════
+def create_master_excel() -> bytes:
+    """Create 3-tab Master Excel: EQUITY_HIST, CALL_OPTIONS, PUT_OPTIONS."""
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        hist = st.session_state.get("equity_hist")
+        if hist is not None and not hist.empty:
+            hist.to_excel(writer, sheet_name='EQUITY_HIST', index=False)
+        else:
+            pd.DataFrame({"Info": ["Fetch from Equity Data page"]}).to_excel(writer, sheet_name='EQUITY_HIST', index=False)
+        
+        calls = st.session_state.get("call_options")
+        if calls is not None and not calls.empty:
+            calls.to_excel(writer, sheet_name='CALL_OPTIONS', index=False)
+        else:
+            pd.DataFrame({"Info": ["No call options"]}).to_excel(writer, sheet_name='CALL_OPTIONS', index=False)
+        
+        puts = st.session_state.get("put_options")
+        if puts is not None and not puts.empty:
+            puts.to_excel(writer, sheet_name='PUT_OPTIONS', index=False)
+        else:
+            pd.DataFrame({"Info": ["No put options"]}).to_excel(writer, sheet_name='PUT_OPTIONS', index=False)
+    return output.getvalue()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NSEPYTHON OPTION CHAIN FETCHER
 # ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=60)
 def fetch_option_chain(symbol: str) -> tuple:
-    """Fetch option chain using nsepython nse_optionchain()."""
+    """Fetch option chain using nsepython."""
     try:
-        from nsepython import nse_optionchain
-        data = nse_optionchain(symbol)
-        if not data or 'records' not in data:
+        from nsepython import option_chain
+        
+        data = option_chain(symbol)
+        
+        if data is None or 'records' not in data:
             return pd.DataFrame(), pd.DataFrame(), 0, 0
         
         records = data['records']
@@ -218,38 +222,36 @@ def fetch_option_chain(symbol: str) -> tuple:
         calls, puts = [], []
         total_call_oi, total_put_oi = 0, 0
         
-        for rec in data_list:
-            strike = rec.get('strikePrice', 0)
-            expiry = rec.get('expiryDate', '')
+        for record in data_list:
+            strike = record.get('strikePrice', 0)
+            expiry = record.get('expiryDate', '')
             
-            if 'CE' in rec:
-                ce = rec['CE']
-                oi = ce.get('openInterest', 0)
-                total_call_oi += oi
+            if 'CE' in record:
+                ce = record['CE']
+                call_oi = ce.get('openInterest', 0)
+                total_call_oi += call_oi
                 calls.append({
-                    'Strike': strike,
-                    'Expiry': expiry,
-                    'LTP': ce.get('lastPrice', 0),
-                    'Change': ce.get('change', 0),
-                    'OI': oi,
-                    'OI_Chg': ce.get('changeinOpenInterest', 0),
-                    'Volume': ce.get('totalTradedVolume', 0),
-                    'IV': ce.get('impliedVolatility', 0),
+                    'Strike': strike, 'Expiry': expiry,
+                    'Call LTP': ce.get('lastPrice', 0),
+                    'Call Change': ce.get('change', 0),
+                    'Call OI': call_oi,
+                    'Call OI Chg': ce.get('changeinOpenInterest', 0),
+                    'Call Volume': ce.get('totalTradedVolume', 0),
+                    'Call IV': ce.get('impliedVolatility', 0),
                 })
             
-            if 'PE' in rec:
-                pe = rec['PE']
-                oi = pe.get('openInterest', 0)
-                total_put_oi += oi
+            if 'PE' in record:
+                pe = record['PE']
+                put_oi = pe.get('openInterest', 0)
+                total_put_oi += put_oi
                 puts.append({
-                    'Strike': strike,
-                    'Expiry': expiry,
-                    'LTP': pe.get('lastPrice', 0),
-                    'Change': pe.get('change', 0),
-                    'OI': oi,
-                    'OI_Chg': pe.get('changeinOpenInterest', 0),
-                    'Volume': pe.get('totalTradedVolume', 0),
-                    'IV': pe.get('impliedVolatility', 0),
+                    'Strike': strike, 'Expiry': expiry,
+                    'Put LTP': pe.get('lastPrice', 0),
+                    'Put Change': pe.get('change', 0),
+                    'Put OI': put_oi,
+                    'Put OI Chg': pe.get('changeinOpenInterest', 0),
+                    'Put Volume': pe.get('totalTradedVolume', 0),
+                    'Put IV': pe.get('impliedVolatility', 0),
                 })
         
         call_df = pd.DataFrame(calls) if calls else pd.DataFrame()
@@ -258,207 +260,189 @@ def fetch_option_chain(symbol: str) -> tuple:
         
         return call_df, put_df, underlying, pcr
     
+    except ImportError:
+        st.error("nsepython not installed. Run: pip install nsepython")
+        return pd.DataFrame(), pd.DataFrame(), 0, 0
     except Exception as e:
-        st.error(f"nse_optionchain error: {e}")
+        st.error(f"Error: {e}")
         return pd.DataFrame(), pd.DataFrame(), 0, 0
 
-# ══════════════════════════════════════════════════════════════════════════════
-# MASTER EXCEL GENERATOR (3 TABS)
-# ══════════════════════════════════════════════════════════════════════════════
-def create_master_excel() -> bytes:
-    """Create 3-tab Master Excel: EQUITY_HIST, CALL_OPTIONS, PUT_OPTIONS."""
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Tab 1: EQUITY_HIST
-        hist = st.session_state.get("equity_hist")
-        if hist is not None and not hist.empty:
-            hist.to_excel(writer, sheet_name='EQUITY_HIST', index=False)
-        else:
-            pd.DataFrame({"Info": ["No equity data - fetch from Equity page"]}).to_excel(writer, sheet_name='EQUITY_HIST', index=False)
-        
-        # Tab 2: CALL_OPTIONS
-        calls = st.session_state.get("call_options")
-        if calls is not None and not calls.empty:
-            calls.to_excel(writer, sheet_name='CALL_OPTIONS', index=False)
-        else:
-            pd.DataFrame({"Info": ["No call options data"]}).to_excel(writer, sheet_name='CALL_OPTIONS', index=False)
-        
-        # Tab 3: PUT_OPTIONS
-        puts = st.session_state.get("put_options")
-        if puts is not None and not puts.empty:
-            puts.to_excel(writer, sheet_name='PUT_OPTIONS', index=False)
-        else:
-            pd.DataFrame({"Info": ["No put options data"]}).to_excel(writer, sheet_name='PUT_OPTIONS', index=False)
+
+def create_combined_chain(call_df: pd.DataFrame, put_df: pd.DataFrame) -> pd.DataFrame:
+    """Create combined option chain table."""
+    if call_df.empty and put_df.empty:
+        return pd.DataFrame()
     
-    return output.getvalue()
+    if not call_df.empty and not put_df.empty:
+        combined = pd.merge(
+            call_df[['Strike', 'Expiry', 'Call OI', 'Call LTP', 'Call IV']],
+            put_df[['Strike', 'Expiry', 'Put OI', 'Put LTP', 'Put IV']],
+            on=['Strike', 'Expiry'], how='outer'
+        )
+        return combined.sort_values('Strike')
+    return call_df if not call_df.empty else put_df
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("# 📊 Derivatives Hub")
-    st.caption("Call/Put Option Chain")
+    st.markdown("# 📈 PRK Exchange Suite")
+    st.caption("Derivatives Analysis")
+    
     st.divider()
     
     st.markdown("### 📊 Symbol Selection")
+    
     default_ticker = st.session_state.get("selected_ticker", "NIFTY")
     if default_ticker not in ALL_SYMBOLS:
         default_ticker = "NIFTY"
-    symbol = st.selectbox("Select Symbol", ALL_SYMBOLS, index=ALL_SYMBOLS.index(default_ticker))
-    st.session_state["selected_ticker"] = symbol
-    st.caption(f"Type: {'Index' if symbol in INDEX_SYMBOLS else 'Stock'}")
+    
+    selected_symbol = st.selectbox("Select Symbol", ALL_SYMBOLS,
+                                   index=ALL_SYMBOLS.index(default_ticker) if default_ticker in ALL_SYMBOLS else 0)
+    
+    st.session_state["selected_ticker"] = selected_symbol
+    is_index = selected_symbol in INDEX_SYMBOLS
+    st.caption(f"Type: {'Index' if is_index else 'Stock'}")
+    
     st.divider()
     
-    st.markdown("### 💾 Persistence Vault")
-    st.caption(f"Ticker: **{symbol}**")
-    if st.session_state.get("equity_data"):
-        st.success("✅ Equity available")
-    if st.session_state.get("options_data"):
-        st.success("✅ Options loaded")
-    st.divider()
+    st.markdown("### 💾 Session State")
+    st.caption(f"Ticker: **{st.session_state.get('selected_ticker')}**")
+    if st.session_state.get("equity_data") is not None:
+        st.success("✅ Equity data available")
+    if st.session_state.get("options_data") is not None:
+        st.success("✅ Options data loaded")
     
+    st.divider()
     st.markdown("### 📡 Data Source")
-    st.markdown('<span class="source-badge">nse_optionchain()</span>', unsafe_allow_html=True)
-    st.caption("Stealth Headers: ✅")
+    st.markdown('<span class="source-badge">nsepython</span>', unsafe_allow_html=True)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN CONTENT
 # ══════════════════════════════════════════════════════════════════════════════
-st.markdown("# 📊 Derivatives Hub (Option Chain)")
-st.caption(f"Symbol: {symbol} | Source: nsepython nse_optionchain()")
-st.markdown(f'<span class="source-badge">nse_optionchain("{symbol}")</span>', unsafe_allow_html=True)
+st.markdown("# 📊 Derivatives (Option Chain)")
+st.caption(f"Data Source: nsepython | Symbol: {selected_symbol}")
+st.markdown(f'<span class="source-badge">option_chain("{selected_symbol}")</span>', unsafe_allow_html=True)
+
 st.divider()
 
-# Auto-load notice
-if st.session_state.get("equity_data"):
-    st.success(f"✅ Ticker '{st.session_state['selected_ticker']}' loaded from Equity page via Persistence Vault")
+# Show persistence info
+if st.session_state.get("equity_data") is not None:
+    st.success(f"✅ Ticker '{st.session_state.get('selected_ticker')}' loaded from Equity page via session_state")
 
 # Fetch Button
-if st.button("🚀 FETCH OPTION CHAIN", use_container_width=True, type="primary"):
-    with st.spinner(f"Fetching {symbol} option chain..."):
-        call_df, put_df, underlying, pcr = fetch_option_chain(symbol)
+if st.button("🚀 Fetch Option Chain", use_container_width=True, type="primary"):
+    with st.spinner(f"Fetching {selected_symbol} option chain from nsepython..."):
+        call_df, put_df, underlying, pcr = fetch_option_chain(selected_symbol)
         
         if not call_df.empty or not put_df.empty:
-            # Validate against Google
-            is_valid, google_price, diff = validate_price(underlying, symbol)
+            # Google Finance Validation
+            is_valid, google_price, diff = validate_price(underlying, selected_symbol)
             
             if not is_valid and google_price > 0:
                 st.warning(f"⚠️ Price mismatch! NSE: ₹{underlying:.2f} vs Google: ₹{google_price:.2f} ({diff*100:.1f}%)")
                 st.cache_data.clear()
-                call_df, put_df, underlying, pcr = fetch_option_chain(symbol)
+                call_df, put_df, underlying, pcr = fetch_option_chain(selected_symbol)
                 st.info("🔄 Session restarted due to >2% mismatch")
-            else:
-                if google_price > 0:
-                    st.markdown(f'<div class="validation-ok">✅ PRICE VALIDATED | Google: ₹{google_price:,.2f}</div>', unsafe_allow_html=True)
             
-            st.session_state["options_data"] = {"underlying": underlying, "pcr": pcr}
+            st.session_state["options_data"] = {"call": call_df, "put": put_df, "underlying": underlying, "pcr": pcr}
             st.session_state["call_options"] = call_df
             st.session_state["put_options"] = put_df
-            
-            st.success(f"✅ Loaded {len(call_df)} Calls + {len(put_df)} Puts | Underlying: ₹{underlying:,.2f}")
+            st.session_state["selected_ticker"] = selected_symbol
+            st.session_state["pcr_value"] = pcr
+            st.session_state["underlying_price"] = underlying
+            st.success(f"✅ Fetched {len(call_df)} Calls + {len(put_df)} Puts | Price validated ✓")
         else:
-            st.error("❌ No option chain data")
+            st.error("❌ No option chain data returned")
 
 st.divider()
 
 # Display Data
 if st.session_state.get("options_data"):
     data = st.session_state["options_data"]
-    call_df = st.session_state.get("call_options", pd.DataFrame())
-    put_df = st.session_state.get("put_options", pd.DataFrame())
-    underlying = data.get("underlying", 0)
-    pcr = data.get("pcr", 0)
+    call_df, put_df = data["call"], data["put"]
+    underlying, pcr = data["underlying"], data["pcr"]
     
-    # PCR Indicator
+    # PCR INDICATOR
     st.markdown("### 📊 Put-Call Ratio (PCR) Indicator")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    
+    pcr_col1, pcr_col2, pcr_col3 = st.columns([1, 2, 1])
+    with pcr_col2:
         if pcr > 1.2:
-            st.markdown(f'<div class="pcr-bullish">PCR: {pcr:.2f} • BULLISH</div>', unsafe_allow_html=True)
-            st.caption("High PCR (>1.2) = More Put writing → Bullish sentiment")
+            sentiment, css_class = "BULLISH", "pcr-bullish"
+            explanation = "High PCR (>1.2) indicates more Put writing → Bullish sentiment"
         elif pcr < 0.8:
-            st.markdown(f'<div class="pcr-bearish">PCR: {pcr:.2f} • BEARISH</div>', unsafe_allow_html=True)
-            st.caption("Low PCR (<0.8) = More Call writing → Bearish sentiment")
+            sentiment, css_class = "BEARISH", "pcr-bearish"
+            explanation = "Low PCR (<0.8) indicates more Call writing → Bearish sentiment"
         else:
-            st.markdown(f'<div class="pcr-neutral">PCR: {pcr:.2f} • NEUTRAL</div>', unsafe_allow_html=True)
-            st.caption("PCR 0.8-1.2 = Balanced market")
+            sentiment, css_class = "NEUTRAL", "pcr-neutral"
+            explanation = "PCR between 0.8-1.2 indicates balanced market"
+        
+        st.markdown(f'<div class="{css_class}">PCR: {pcr:.2f} • {sentiment}</div>', unsafe_allow_html=True)
+        st.caption(explanation)
     
     st.divider()
     
-    # KPI Metrics
-    st.markdown("### 📊 KPI Metrics")
+    # KPI METRICS
+    st.markdown("### 📊 Market Overview")
     m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric("UNDERLYING", f"₹{underlying:,.2f}")
     with m2:
         st.metric("PCR", f"{pcr:.2f}")
     with m3:
-        total_call_oi = call_df['OI'].sum() if 'OI' in call_df.columns else 0
-        st.metric("TOTAL CALL OI", f"{total_call_oi:,}")
+        total_call_oi = call_df['Call OI'].sum() if 'Call OI' in call_df.columns else 0
+        st.metric("TOTAL CALL OI", f"{total_call_oi:,.0f}")
     with m4:
-        total_put_oi = put_df['OI'].sum() if 'OI' in put_df.columns else 0
-        st.metric("TOTAL PUT OI", f"{total_put_oi:,}")
-    
-    v1, v2, v3, v4 = st.columns(4)
-    with v1:
-        total_call_vol = call_df['Volume'].sum() if 'Volume' in call_df.columns else 0
-        st.metric("CALL VOLUME", f"{total_call_vol:,}")
-    with v2:
-        total_put_vol = put_df['Volume'].sum() if 'Volume' in put_df.columns else 0
-        st.metric("PUT VOLUME", f"{total_put_vol:,}")
-    with v3:
-        st.metric("CALL STRIKES", len(call_df))
-    with v4:
-        st.metric("PUT STRIKES", len(put_df))
+        total_put_oi = put_df['Put OI'].sum() if 'Put OI' in put_df.columns else 0
+        st.metric("TOTAL PUT OI", f"{total_put_oi:,.0f}")
     
     st.divider()
     
-    # Option Chain Tables (Clean Rows & Columns)
-    st.markdown("### 📋 Option Chain (Clean Data)")
-    tab1, tab2 = st.tabs(["🟢 CALL OPTIONS", "🔴 PUT OPTIONS"])
+    # OPTION CHAIN TABLE
+    st.markdown("### 📋 Option Chain Table")
+    combined = create_combined_chain(call_df, put_df)
+    if not combined.empty:
+        st.dataframe(combined, use_container_width=True, hide_index=True)
     
+    st.divider()
+    
+    # TABS
+    st.markdown("### 📊 Detailed View")
+    tab1, tab2 = st.tabs(["🟢 CALL (CE)", "🔴 PUT (PE)"])
     with tab1:
         if not call_df.empty:
             st.dataframe(call_df, use_container_width=True, hide_index=True)
         else:
             st.info("No Call data")
-    
     with tab2:
         if not put_df.empty:
             st.dataframe(put_df, use_container_width=True, hide_index=True)
         else:
             st.info("No Put data")
     
+    # Download
     st.divider()
+    if not combined.empty:
+        st.download_button("📥 Download Option Chain CSV", combined.to_csv(index=False),
+                          f"{selected_symbol}_options.csv", "text/csv", use_container_width=True)
     
-    # Export Section
+    # Master Excel Download
     st.markdown("### 📥 Master Download")
-    col1, col2 = st.columns(2)
-    with col1:
-        if not call_df.empty:
-            combined = pd.concat([
-                call_df.assign(Type='CALL'),
-                put_df.assign(Type='PUT')
-            ], ignore_index=True)
-            st.download_button(
-                "📥 Download CSV",
-                combined.to_csv(index=False),
-                f"{symbol}_options.csv",
-                "text/csv",
-                use_container_width=True
-            )
-    with col2:
-        excel_data = create_master_excel()
-        st.download_button(
-            "📥 MASTER EXCEL (3 TABS)",
-            excel_data,
-            f"{symbol}_Master_Data.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-else:
-    st.info("👆 Click **FETCH OPTION CHAIN** to load data")
+    excel_data = create_master_excel()
+    st.download_button(
+        "📥 MASTER EXCEL (3 TABS)",
+        excel_data,
+        f"{selected_symbol}_Master_Data.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
 
+else:
+    st.info("👆 Click **Fetch Option Chain** to load data from nsepython")
+
+# Footer
 st.divider()
-st.caption(f"📈 Quantum Market Suite | Derivatives Hub | {datetime.now().strftime('%H:%M:%S')}")
-st.caption("Stealth: TLS Fingerprint | Headers: Accept-Encoding gzip,deflate,br | Referer: nseindia.com")
+st.caption(f"📈 PRK Exchange Suite | Derivatives Page | {datetime.now().strftime('%H:%M:%S')}")
