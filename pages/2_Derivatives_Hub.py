@@ -39,21 +39,122 @@ if "put_options" not in st.session_state:
     st.session_state["put_options"] = None
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TERMINAL CSS
+# TERMINAL THEME CSS (Dark Mode with Green/Red Highlights)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
-.stApp { background: #0d1117; }
-[data-testid="stMetric"] { background: #161b22; border-radius: 8px; padding: 1rem; border: 1px solid #30363d; }
-[data-testid="stMetricLabel"] { color: #00ff41 !important; font-size: 0.75rem !important; text-transform: uppercase; }
-[data-testid="stMetricValue"] { color: #e6edf3 !important; font-size: 1.3rem !important; }
-section[data-testid="stSidebar"] { background: #0d1117; border-right: 1px solid #30363d; }
-section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h3 { color: #00ff41 !important; }
-.stButton > button { background: linear-gradient(135deg, #238636, #2ea043); color: #fff; font-weight: 600; border: none; }
-.pcr-bullish { background: #00ff41; color: #0d1117; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-align: center; }
-.pcr-bearish { background: #ff4757; color: #fff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-align: center; }
-.pcr-neutral { background: #ffc107; color: #0d1117; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-align: center; }
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+.stApp {
+    background: linear-gradient(135deg, #0a0f0d 0%, #0d1117 50%, #0a0f0d 100%);
+    font-family: 'Inter', sans-serif;
+}
+
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid #30363d;
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.1);
+}
+[data-testid="stMetricLabel"] {
+    color: #00ff41 !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+[data-testid="stMetricValue"] {
+    color: #e6edf3 !important;
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+    border-right: 1px solid #30363d;
+}
+section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 {
+    color: #00ff41 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+.stButton > button {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: #ffffff;
+    font-weight: 600;
+    border: 1px solid #238636;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+}
+.stButton > button:hover {
+    background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
+    box-shadow: 0 0 20px rgba(46, 160, 67, 0.4);
+}
+
+.source-badge {
+    background: rgba(0, 255, 65, 0.15);
+    color: #00ff41;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.pcr-bullish {
+    background: linear-gradient(135deg, #00ff41 0%, #00d4aa 100%);
+    color: #0d1117;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+}
+.pcr-bearish {
+    background: linear-gradient(135deg, #ff4757 0%, #ff6b7a 100%);
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+}
+.pcr-neutral {
+    background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
+    color: #0d1117;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.validation-ok {
+    background: rgba(0, 255, 65, 0.1);
+    color: #00ff41;
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.session-active {
+    background: rgba(0, 255, 65, 0.1);
+    color: #00ff41;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -196,7 +297,9 @@ def create_master_excel() -> bytes:
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("# 📊 Derivatives Hub")
+    st.caption("Call/Put Option Chain")
     st.divider()
+    
     st.markdown("### 📊 Symbol Selection")
     default_ticker = st.session_state.get("selected_ticker", "NIFTY")
     if default_ticker not in ALL_SYMBOLS:
@@ -205,6 +308,7 @@ with st.sidebar:
     st.session_state["selected_ticker"] = symbol
     st.caption(f"Type: {'Index' if symbol in INDEX_SYMBOLS else 'Stock'}")
     st.divider()
+    
     st.markdown("### 💾 Persistence Vault")
     st.caption(f"Ticker: **{symbol}**")
     if st.session_state.get("equity_data"):
@@ -212,14 +316,17 @@ with st.sidebar:
     if st.session_state.get("options_data"):
         st.success("✅ Options loaded")
     st.divider()
-    st.markdown("### 📡 Source")
-    st.code("nse_optionchain()")
+    
+    st.markdown("### 📡 Data Source")
+    st.markdown('<span class="source-badge">nse_optionchain()</span>', unsafe_allow_html=True)
+    st.caption("Stealth Headers: ✅")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN CONTENT
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("# 📊 Derivatives Hub (Option Chain)")
 st.caption(f"Symbol: {symbol} | Source: nsepython nse_optionchain()")
+st.markdown(f'<span class="source-badge">nse_optionchain("{symbol}")</span>', unsafe_allow_html=True)
 st.divider()
 
 # Auto-load notice
@@ -240,6 +347,9 @@ if st.button("🚀 FETCH OPTION CHAIN", use_container_width=True, type="primary"
                 st.cache_data.clear()
                 call_df, put_df, underlying, pcr = fetch_option_chain(symbol)
                 st.info("🔄 Session restarted due to >2% mismatch")
+            else:
+                if google_price > 0:
+                    st.markdown(f'<div class="validation-ok">✅ PRICE VALIDATED | Google: ₹{google_price:,.2f}</div>', unsafe_allow_html=True)
             
             st.session_state["options_data"] = {"underlying": underlying, "pcr": pcr}
             st.session_state["call_options"] = call_df
@@ -260,15 +370,15 @@ if st.session_state.get("options_data"):
     pcr = data.get("pcr", 0)
     
     # PCR Indicator
-    st.markdown("### 📊 Put-Call Ratio (PCR)")
+    st.markdown("### 📊 Put-Call Ratio (PCR) Indicator")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if pcr > 1.2:
             st.markdown(f'<div class="pcr-bullish">PCR: {pcr:.2f} • BULLISH</div>', unsafe_allow_html=True)
-            st.caption("High PCR (>1.2) = More Put writing → Bullish")
+            st.caption("High PCR (>1.2) = More Put writing → Bullish sentiment")
         elif pcr < 0.8:
             st.markdown(f'<div class="pcr-bearish">PCR: {pcr:.2f} • BEARISH</div>', unsafe_allow_html=True)
-            st.caption("Low PCR (<0.8) = More Call writing → Bearish")
+            st.caption("Low PCR (<0.8) = More Call writing → Bearish sentiment")
         else:
             st.markdown(f'<div class="pcr-neutral">PCR: {pcr:.2f} • NEUTRAL</div>', unsafe_allow_html=True)
             st.caption("PCR 0.8-1.2 = Balanced market")
@@ -284,10 +394,22 @@ if st.session_state.get("options_data"):
         st.metric("PCR", f"{pcr:.2f}")
     with m3:
         total_call_oi = call_df['OI'].sum() if 'OI' in call_df.columns else 0
-        st.metric("CALL OI", f"{total_call_oi:,}")
+        st.metric("TOTAL CALL OI", f"{total_call_oi:,}")
     with m4:
         total_put_oi = put_df['OI'].sum() if 'OI' in put_df.columns else 0
-        st.metric("PUT OI", f"{total_put_oi:,}")
+        st.metric("TOTAL PUT OI", f"{total_put_oi:,}")
+    
+    v1, v2, v3, v4 = st.columns(4)
+    with v1:
+        total_call_vol = call_df['Volume'].sum() if 'Volume' in call_df.columns else 0
+        st.metric("CALL VOLUME", f"{total_call_vol:,}")
+    with v2:
+        total_put_vol = put_df['Volume'].sum() if 'Volume' in put_df.columns else 0
+        st.metric("PUT VOLUME", f"{total_put_vol:,}")
+    with v3:
+        st.metric("CALL STRIKES", len(call_df))
+    with v4:
+        st.metric("PUT STRIKES", len(put_df))
     
     st.divider()
     
@@ -309,18 +431,34 @@ if st.session_state.get("options_data"):
     
     st.divider()
     
-    # Master Download
+    # Export Section
     st.markdown("### 📥 Master Download")
-    excel_data = create_master_excel()
-    st.download_button(
-        "📥 DOWNLOAD MASTER EXCEL (3 TABS)",
-        excel_data,
-        f"{symbol}_Master_Data.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+    col1, col2 = st.columns(2)
+    with col1:
+        if not call_df.empty:
+            combined = pd.concat([
+                call_df.assign(Type='CALL'),
+                put_df.assign(Type='PUT')
+            ], ignore_index=True)
+            st.download_button(
+                "📥 Download CSV",
+                combined.to_csv(index=False),
+                f"{symbol}_options.csv",
+                "text/csv",
+                use_container_width=True
+            )
+    with col2:
+        excel_data = create_master_excel()
+        st.download_button(
+            "📥 MASTER EXCEL (3 TABS)",
+            excel_data,
+            f"{symbol}_Master_Data.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 else:
-    st.info("👆 Click **FETCH OPTION CHAIN** to load")
+    st.info("👆 Click **FETCH OPTION CHAIN** to load data")
 
 st.divider()
-st.caption(f"📊 Derivatives Hub | {datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"📈 Quantum Market Suite | Derivatives Hub | {datetime.now().strftime('%H:%M:%S')}")
+st.caption("Stealth: TLS Fingerprint | Headers: Accept-Encoding gzip,deflate,br | Referer: nseindia.com")
